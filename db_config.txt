@@ -1,0 +1,5 @@
+username=root
+password=
+database=social_media_db
+host=localhost
+port=3306
