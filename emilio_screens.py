@@ -1,0 +1,590 @@
+"""
+Screens built by Emilio Munoz:
+  - AddPostsWindow          : Add posts to a project (with duplicate detection)
+  - LinkAccountsWindow      : Link multiple social media accounts to the same person
+  - SearchByPlatformWindow  : Search posts by social media platform
+  - SearchByDateRangeWindow : Search posts by date/time range
+"""
+
+import tkinter as tk
+from tkinter import ttk, messagebox
+from db_connection import get_connection
+
+# Style constants — match main_menu.py
+BG           = "#1e1e2e"
+PANEL        = "#2a2a3e"
+ACCENT       = "#7c6af7"
+ACCENT_HOVER = "#9a8bff"
+TEXT         = "#e0e0f0"
+SUBTEXT      = "#a0a0c0"
+ENTRY_BG     = "#3a3a52"
+FONT_H2      = ("Segoe UI", 14, "bold")
+FONT_BODY    = ("Segoe UI", 11)
+FONT_SMALL   = ("Segoe UI", 9)
+
+
+def make_button(parent, text, command):
+    frame = tk.Frame(parent, bg=ACCENT, cursor="hand2")
+    lbl = tk.Label(frame, text=text, bg=ACCENT, fg="white",
+                   font=FONT_BODY, padx=12, pady=6, anchor="w")
+    lbl.pack(fill="both", expand=True)
+    def _click(e): command()
+    def _enter(e): lbl.configure(bg=ACCENT_HOVER); frame.configure(bg=ACCENT_HOVER)
+    def _leave(e): lbl.configure(bg=ACCENT); frame.configure(bg=ACCENT)
+    for w in (frame, lbl):
+        w.bind("<Button-1>", _click)
+        w.bind("<Enter>", _enter)
+        w.bind("<Leave>", _leave)
+    return frame
+
+
+def make_tree(parent, columns, height=10):
+    col_ids = [c[0] for c in columns]
+    tree = ttk.Treeview(parent, columns=col_ids, show="headings", height=height)
+    tree.tag_configure("odd",  background="#252538")
+    tree.tag_configure("even", background=PANEL)
+    for col_id, heading, width in columns:
+        tree.heading(col_id, text=heading)
+        tree.column(col_id, width=width, minwidth=40)
+    sb = ttk.Scrollbar(parent, orient="vertical", command=tree.yview)
+    tree.configure(yscrollcommand=sb.set)
+    tree.pack(side="left", fill="both", expand=True)
+    sb.pack(side="right", fill="y")
+    return tree
+
+
+def labeled_entry(parent, label, row, var):
+    tk.Label(parent, text=label, font=FONT_BODY, bg=PANEL, fg=TEXT).grid(
+        row=row, column=0, sticky="e", padx=(12, 6), pady=4)
+    e = tk.Entry(parent, textvariable=var, font=FONT_BODY,
+                 bg=ENTRY_BG, fg=TEXT, insertbackground=TEXT,
+                 relief="flat", width=34)
+    e.grid(row=row, column=1, sticky="w", padx=(0, 12), pady=4, ipady=3)
+    return e
+
+
+def center_window(win, w, h):
+    win.update_idletasks()
+    sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
+    win.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2}")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 1. ADD POSTS TO A PROJECT
+# ══════════════════════════════════════════════════════════════════════════════
+class AddPostsWindow(tk.Toplevel):
+    """
+    Data entry: add a post to a project.
+    - SocialMedia and UserAccount rows are created automatically if missing.
+    - Duplicate post (same username + media_name + post_time) reuses existing row.
+    - Always links the post to the chosen project via ProjectPost.
+    """
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("Add Post to Project")
+        self.configure(bg=BG)
+        self.resizable(False, False)
+        center_window(self, 560, 700)
+        self._build()
+
+    def _build(self):
+        hdr = tk.Frame(self, bg=ACCENT, pady=10)
+        hdr.pack(fill="x")
+        tk.Label(hdr, text="Add Post to Project",
+                 font=FONT_H2, bg=ACCENT, fg="white").pack()
+
+        form = tk.Frame(self, bg=PANEL, padx=16, pady=16)
+        form.pack(fill="x", padx=20, pady=16)
+
+        self._project    = tk.StringVar()
+        self._username   = tk.StringVar()
+        self._media      = tk.StringVar()
+        self._post_time  = tk.StringVar()
+        self._content    = tk.StringVar()
+        self._city       = tk.StringVar()
+        self._state      = tk.StringVar()
+        self._country    = tk.StringVar()
+        self._likes      = tk.StringVar()
+        self._dislikes   = tk.StringVar()
+        self._repost_of  = tk.StringVar()
+        self._multimedia = tk.BooleanVar(value=False)
+
+        fields = [
+            ("Project name *",                 self._project),
+            ("Username *",                     self._username),
+            ("Platform (media_name) *",        self._media),
+            ("Post time * (YYYY-MM-DD HH:MM)", self._post_time),
+            ("Content *",                      self._content),
+            ("City",                           self._city),
+            ("State",                          self._state),
+            ("Country",                        self._country),
+            ("Likes",                          self._likes),
+            ("Dislikes",                       self._dislikes),
+            ("Repost of (post_id)",            self._repost_of),
+        ]
+        for i, (label, var) in enumerate(fields):
+            labeled_entry(form, label, i, var)
+
+        tk.Label(form, text="Has multimedia", font=FONT_BODY,
+                 bg=PANEL, fg=TEXT).grid(row=len(fields), column=0,
+                                         sticky="e", padx=(12, 6), pady=4)
+        tk.Checkbutton(form, variable=self._multimedia,
+                       bg=PANEL, fg=TEXT, selectcolor=ENTRY_BG,
+                       activebackground=PANEL).grid(
+            row=len(fields), column=1, sticky="w")
+
+        self._status = tk.StringVar(value="Fill in required (*) fields and click Submit.")
+        tk.Label(self, textvariable=self._status, font=FONT_SMALL,
+                 bg=BG, fg=SUBTEXT, wraplength=520, anchor="w").pack(
+            fill="x", padx=20, pady=(0, 4))
+
+        btn = make_button(self, "Submit", self._submit)
+        btn.pack(pady=(0, 16), padx=20, fill="x")
+
+    def _submit(self):
+        project   = self._project.get().strip()
+        username  = self._username.get().strip()
+        media     = self._media.get().strip()
+        post_time = self._post_time.get().strip()
+        content   = self._content.get().strip()
+
+        if not all([project, username, media, post_time, content]):
+            messagebox.showwarning("Missing fields",
+                                   "Please fill in all required (*) fields.")
+            return
+
+        def int_or_none(s):
+            s = s.strip()
+            return int(s) if s.isdigit() else None
+
+        likes     = int_or_none(self._likes.get())
+        dislikes  = int_or_none(self._dislikes.get())
+        raw_rep   = self._repost_of.get().strip()
+        repost_of = int(raw_rep) if raw_rep.isdigit() else None
+        city      = self._city.get().strip() or None
+        state     = self._state.get().strip() or None
+        country   = self._country.get().strip() or None
+
+        try:
+            conn = get_connection()
+            cur  = conn.cursor(dictionary=True)
+
+            # Verify the project exists
+            cur.execute("SELECT 1 FROM ResearchProject WHERE project_name = %s",
+                        (project,))
+            if not cur.fetchone():
+                messagebox.showerror("Not found",
+                                     f"Project '{project}' does not exist.")
+                conn.close()
+                return
+
+            # Auto-create SocialMedia and UserAccount if missing
+            cur.execute("INSERT IGNORE INTO SocialMedia (media_name) VALUES (%s)",
+                        (media,))
+            cur.execute("""
+                INSERT IGNORE INTO UserAccount (username, media_name)
+                VALUES (%s, %s)
+            """, (username, media))
+
+            # Duplicate check: same username + media_name + post_time
+            cur.execute("""
+                SELECT post_id FROM Post
+                WHERE username = %s AND media_name = %s AND post_time = %s
+            """, (username, media, post_time))
+            existing = cur.fetchone()
+
+            if existing:
+                post_id = existing["post_id"]
+                self._status.set(
+                    f"Post already exists (id={post_id}). Linking to project.")
+            else:
+                cur.execute("""
+                    INSERT INTO Post
+                        (username, media_name, content, post_time,
+                         city, state, country, likes, dislikes,
+                         has_multimedia, repost_of)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (username, media, content, post_time,
+                      city, state, country, likes, dislikes,
+                      self._multimedia.get(), repost_of))
+                post_id = cur.lastrowid
+                self._status.set(f"Post created (id={post_id}). Linking to project.")
+
+            # Link post ↔ project (safe to re-run if already linked)
+            cur.execute("""
+                INSERT IGNORE INTO ProjectPost (project_name, post_id)
+                VALUES (%s, %s)
+            """, (project, post_id))
+
+            conn.commit()
+            conn.close()
+            messagebox.showinfo("Success",
+                                f"Post (id={post_id}) linked to '{project}'.")
+            self._clear()
+
+        except Exception as exc:
+            messagebox.showerror("Database Error", str(exc))
+
+    def _clear(self):
+        for var in (self._project, self._username, self._media, self._post_time,
+                    self._content, self._city, self._state, self._country,
+                    self._likes, self._dislikes, self._repost_of):
+            var.set("")
+        self._multimedia.set(False)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 2. LINK ACCOUNTS → SAME PERSON
+# ══════════════════════════════════════════════════════════════════════════════
+class LinkAccountsWindow(tk.Toplevel):
+    """
+    Associate a social media account (username + media) to a Person.
+    User can create a new Person (auto-assigned ID) or link to an existing one.
+    Person table has no name column — only person_id (auto-increment PK).
+    """
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("Link Accounts → Same Person")
+        self.configure(bg=BG)
+        self.resizable(False, False)
+        center_window(self, 520, 480)
+        self._build()
+
+    def _build(self):
+        hdr = tk.Frame(self, bg=ACCENT, pady=10)
+        hdr.pack(fill="x")
+        tk.Label(hdr, text="Link Accounts to Same Person",
+                 font=FONT_H2, bg=ACCENT, fg="white").pack()
+
+        form = tk.Frame(self, bg=PANEL, padx=16, pady=16)
+        form.pack(fill="x", padx=20, pady=16)
+
+        self._new_person = tk.BooleanVar(value=True)
+        self._person_id  = tk.StringVar()
+        self._username   = tk.StringVar()
+        self._media      = tk.StringVar()
+
+        # Radio: new vs existing person
+        tk.Label(form, text="Person:", font=FONT_BODY,
+                 bg=PANEL, fg=TEXT).grid(row=0, column=0, sticky="e",
+                                         padx=(12, 6), pady=4)
+        rb_frame = tk.Frame(form, bg=PANEL)
+        rb_frame.grid(row=0, column=1, sticky="w")
+        tk.Radiobutton(rb_frame, text="Create new person",
+                       variable=self._new_person, value=True,
+                       bg=PANEL, fg=TEXT, selectcolor=ENTRY_BG,
+                       activebackground=PANEL,
+                       command=self._toggle).pack(side="left")
+        tk.Radiobutton(rb_frame, text="Use existing ID",
+                       variable=self._new_person, value=False,
+                       bg=PANEL, fg=TEXT, selectcolor=ENTRY_BG,
+                       activebackground=PANEL,
+                       command=self._toggle).pack(side="left", padx=(12, 0))
+
+        tk.Label(form, text="Person ID", font=FONT_BODY,
+                 bg=PANEL, fg=TEXT).grid(row=1, column=0, sticky="e",
+                                          padx=(12, 6), pady=4)
+        self._id_entry = tk.Entry(form, textvariable=self._person_id,
+                                   font=FONT_BODY, bg=ENTRY_BG, fg=TEXT,
+                                   insertbackground=TEXT, relief="flat",
+                                   width=16, state="disabled")
+        self._id_entry.grid(row=1, column=1, sticky="w",
+                             padx=(0, 12), pady=4, ipady=3)
+
+        labeled_entry(form, "Username *",         2, self._username)
+        labeled_entry(form, "Platform (media) *", 3, self._media)
+
+        self._status = tk.StringVar(
+            value="Create a new person or enter an existing ID, then link an account.")
+        tk.Label(self, textvariable=self._status, font=FONT_SMALL,
+                 bg=BG, fg=SUBTEXT, wraplength=480, anchor="w").pack(
+            fill="x", padx=20, pady=(0, 4))
+
+        btn = make_button(self, "Link Account", self._submit)
+        btn.pack(pady=(0, 10), padx=20, fill="x")
+
+        tk.Label(self, text="Existing links", font=FONT_SMALL,
+                 bg=BG, fg=SUBTEXT).pack(anchor="w", padx=20)
+        tree_frame = tk.Frame(self, bg=BG)
+        tree_frame.pack(fill="both", expand=True, padx=20, pady=(0, 12))
+        self._link_tree = make_tree(tree_frame, [
+            ("person_id", "Person ID", 90),
+            ("username",  "Username",  160),
+            ("media_name","Platform",  140),
+        ], height=5)
+        self._load_links()
+
+    def _toggle(self):
+        if self._new_person.get():
+            self._id_entry.configure(state="disabled")
+        else:
+            self._id_entry.configure(state="normal")
+
+    def _load_links(self):
+        self._link_tree.delete(*self._link_tree.get_children())
+        try:
+            conn = get_connection()
+            cur  = conn.cursor(dictionary=True)
+            cur.execute("""
+                SELECT person_id, username, media_name
+                FROM AccountOwnership
+                ORDER BY person_id, username
+            """)
+            for i, row in enumerate(cur.fetchall()):
+                tag = "odd" if i % 2 else "even"
+                self._link_tree.insert("", "end", tags=(tag,),
+                    values=(row["person_id"], row["username"], row["media_name"]))
+            conn.close()
+        except Exception as exc:
+            messagebox.showerror("Database Error", str(exc))
+
+    def _submit(self):
+        username = self._username.get().strip()
+        media    = self._media.get().strip()
+        if not username or not media:
+            messagebox.showwarning("Missing fields",
+                                   "Username and Platform are required.")
+            return
+
+        try:
+            conn = get_connection()
+            cur  = conn.cursor(dictionary=True)
+
+            # Verify the UserAccount exists
+            cur.execute("""
+                SELECT 1 FROM UserAccount
+                WHERE username = %s AND media_name = %s
+            """, (username, media))
+            if not cur.fetchone():
+                messagebox.showerror("Not found",
+                    f"No account '{username}' on '{media}' found in the database.")
+                conn.close()
+                return
+
+            if self._new_person.get():
+                cur.execute("INSERT INTO Person () VALUES ()")
+                person_id = cur.lastrowid
+            else:
+                raw = self._person_id.get().strip()
+                if not raw.isdigit():
+                    messagebox.showwarning("Invalid ID", "Person ID must be a number.")
+                    conn.close()
+                    return
+                person_id = int(raw)
+                cur.execute("SELECT 1 FROM Person WHERE person_id = %s", (person_id,))
+                if not cur.fetchone():
+                    messagebox.showerror("Not found",
+                                         f"No person with ID {person_id}.")
+                    conn.close()
+                    return
+
+            cur.execute("""
+                INSERT IGNORE INTO AccountOwnership (person_id, username, media_name)
+                VALUES (%s, %s, %s)
+            """, (person_id, username, media))
+
+            conn.commit()
+            conn.close()
+            messagebox.showinfo("Success",
+                f"'{username}' on '{media}' linked to person ID {person_id}.")
+            self._username.set("")
+            self._media.set("")
+            self._load_links()
+
+        except Exception as exc:
+            messagebox.showerror("Database Error", str(exc))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 3. SEARCH POSTS BY PLATFORM
+# ══════════════════════════════════════════════════════════════════════════════
+class SearchByPlatformWindow(tk.Toplevel):
+    """
+    Enter a platform name → see all posts from that platform with
+    poster info and linked experiment names.
+    """
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("Search Posts by Platform")
+        self.configure(bg=BG)
+        self.resizable(True, True)
+        center_window(self, 900, 540)
+        self._build()
+
+    def _build(self):
+        hdr = tk.Frame(self, bg=ACCENT, pady=10)
+        hdr.pack(fill="x")
+        tk.Label(hdr, text="Search Posts by Platform",
+                 font=FONT_H2, bg=ACCENT, fg="white").pack()
+
+        sf = tk.Frame(self, bg=PANEL, pady=12, padx=20)
+        sf.pack(fill="x")
+        tk.Label(sf, text="Platform:", font=FONT_BODY,
+                 bg=PANEL, fg=TEXT).pack(side="left")
+        self._platform_var = tk.StringVar()
+        entry = tk.Entry(sf, textvariable=self._platform_var,
+                         font=FONT_BODY, bg=ENTRY_BG, fg=TEXT,
+                         insertbackground=TEXT, relief="flat", width=30)
+        entry.pack(side="left", padx=(8, 12), ipady=4)
+        entry.bind("<Return>", lambda _e: self._search())
+        b = make_button(sf, "Search", self._search)
+        b.pack(side="left")
+
+        self._status = tk.StringVar(value="Enter a platform name (e.g. Facebook).")
+        tk.Label(self, textvariable=self._status, font=FONT_SMALL,
+                 bg=BG, fg=SUBTEXT, anchor="w").pack(fill="x", padx=16, pady=(4, 0))
+
+        tree_frame = tk.Frame(self, bg=BG)
+        tree_frame.pack(fill="both", expand=True, padx=12, pady=8)
+        self._tree = make_tree(tree_frame, [
+            ("post_id",     "ID",              55),
+            ("username",    "Username",        140),
+            ("media_name",  "Platform",        110),
+            ("post_time",   "Posted At",       145),
+            ("experiments", "Projects",        200),
+            ("preview",     "Content preview", 280),
+        ])
+
+    def _search(self):
+        platform = self._platform_var.get().strip()
+        if not platform:
+            messagebox.showwarning("Input needed", "Please enter a platform name.")
+            return
+
+        self._tree.delete(*self._tree.get_children())
+        try:
+            conn = get_connection()
+            cur  = conn.cursor(dictionary=True)
+            cur.execute("""
+                SELECT p.post_id,
+                       p.username,
+                       p.media_name,
+                       p.post_time,
+                       LEFT(p.content, 80) AS preview,
+                       GROUP_CONCAT(pp.project_name
+                           ORDER BY pp.project_name SEPARATOR ', ') AS experiments
+                FROM Post p
+                LEFT JOIN ProjectPost pp ON pp.post_id = p.post_id
+                WHERE p.media_name = %s
+                GROUP BY p.post_id
+                ORDER BY p.post_time DESC
+            """, (platform,))
+            rows = cur.fetchall()
+            conn.close()
+
+            for i, row in enumerate(rows):
+                tag     = "odd" if i % 2 else "even"
+                preview = (row["preview"] + "…") if row["preview"] else ""
+                self._tree.insert("", "end", tags=(tag,), values=(
+                    row["post_id"], row["username"], row["media_name"],
+                    str(row["post_time"]), row["experiments"] or "—", preview,
+                ))
+            self._status.set(f"{len(rows)} post(s) found on '{platform}'.")
+
+        except Exception as exc:
+            messagebox.showerror("Database Error", str(exc))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 4. SEARCH POSTS BY DATE RANGE
+# ══════════════════════════════════════════════════════════════════════════════
+class SearchByDateRangeWindow(tk.Toplevel):
+    """
+    Enter a start and end datetime → returns all posts in that window
+    with poster info and linked experiment names.
+    """
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("Search Posts by Date Range")
+        self.configure(bg=BG)
+        self.resizable(True, True)
+        center_window(self, 900, 540)
+        self._build()
+
+    def _build(self):
+        hdr = tk.Frame(self, bg=ACCENT, pady=10)
+        hdr.pack(fill="x")
+        tk.Label(hdr, text="Search Posts by Date Range",
+                 font=FONT_H2, bg=ACCENT, fg="white").pack()
+
+        sf = tk.Frame(self, bg=PANEL, pady=12, padx=20)
+        sf.pack(fill="x")
+
+        tk.Label(sf, text="From:", font=FONT_BODY,
+                 bg=PANEL, fg=TEXT).pack(side="left")
+        self._start_var = tk.StringVar()
+        tk.Entry(sf, textvariable=self._start_var, font=FONT_BODY,
+                 bg=ENTRY_BG, fg=TEXT, insertbackground=TEXT,
+                 relief="flat", width=20).pack(side="left", padx=(8, 16), ipady=4)
+
+        tk.Label(sf, text="To:", font=FONT_BODY,
+                 bg=PANEL, fg=TEXT).pack(side="left")
+        self._end_var = tk.StringVar()
+        tk.Entry(sf, textvariable=self._end_var, font=FONT_BODY,
+                 bg=ENTRY_BG, fg=TEXT, insertbackground=TEXT,
+                 relief="flat", width=20).pack(side="left", padx=(8, 16), ipady=4)
+
+        b = make_button(sf, "Search", self._search)
+        b.pack(side="left")
+
+        self._status = tk.StringVar(
+            value="Enter dates as YYYY-MM-DD or YYYY-MM-DD HH:MM.")
+        tk.Label(self, textvariable=self._status, font=FONT_SMALL,
+                 bg=BG, fg=SUBTEXT, anchor="w").pack(fill="x", padx=16, pady=(4, 0))
+
+        tree_frame = tk.Frame(self, bg=BG)
+        tree_frame.pack(fill="both", expand=True, padx=12, pady=8)
+        self._tree = make_tree(tree_frame, [
+            ("post_id",     "ID",              55),
+            ("username",    "Username",        140),
+            ("media_name",  "Platform",        110),
+            ("post_time",   "Posted At",       145),
+            ("experiments", "Projects",        200),
+            ("preview",     "Content preview", 280),
+        ])
+
+    def _search(self):
+        start = self._start_var.get().strip()
+        end   = self._end_var.get().strip()
+        if not start or not end:
+            messagebox.showwarning("Input needed",
+                                   "Please enter both a start and end date.")
+            return
+
+        self._tree.delete(*self._tree.get_children())
+        try:
+            conn = get_connection()
+            cur  = conn.cursor(dictionary=True)
+            cur.execute("""
+                SELECT p.post_id,
+                       p.username,
+                       p.media_name,
+                       p.post_time,
+                       LEFT(p.content, 80) AS preview,
+                       GROUP_CONCAT(pp.project_name
+                           ORDER BY pp.project_name SEPARATOR ', ') AS experiments
+                FROM Post p
+                LEFT JOIN ProjectPost pp ON pp.post_id = p.post_id
+                WHERE p.post_time BETWEEN %s AND %s
+                GROUP BY p.post_id
+                ORDER BY p.post_time DESC
+            """, (start, end))
+            rows = cur.fetchall()
+            conn.close()
+
+            for i, row in enumerate(rows):
+                tag     = "odd" if i % 2 else "even"
+                preview = (row["preview"] + "…") if row["preview"] else ""
+                self._tree.insert("", "end", tags=(tag,), values=(
+                    row["post_id"], row["username"], row["media_name"],
+                    str(row["post_time"]), row["experiments"] or "—", preview,
+                ))
+            self._status.set(
+                f"{len(rows)} post(s) found between '{start}' and '{end}'.")
+
+        except Exception as exc:
+            messagebox.showerror("Database Error", str(exc))

@@ -10,6 +10,10 @@ Run with:
 import tkinter as tk
 from tkinter import ttk, messagebox
 from db_connection import get_connection
+from emilio_screens import (
+    AddPostsWindow, LinkAccountsWindow,
+    SearchByPlatformWindow, SearchByDateRangeWindow,
+)
 
 
 
@@ -20,7 +24,7 @@ ACCENT       = "#7c6af7"
 ACCENT_HOVER = "#9a8bff"
 TEXT         = "#e0e0f0"
 SUBTEXT      = "#a0a0c0"
-ENTRY_BG     = "#12121f"
+ENTRY_BG     = "#3a3a52"
 
 FONT_H1   = ("Segoe UI", 20, "bold")
 FONT_H2   = ("Segoe UI", 14, "bold")
@@ -28,13 +32,19 @@ FONT_BODY = ("Segoe UI", 11)
 FONT_SMALL= ("Segoe UI", 9)
 
 
-def style_button(btn, primary=True):
-    btn.configure(
-        bg=ACCENT if primary else PANEL,
-        fg=TEXT, activebackground=ACCENT_HOVER, activeforeground=TEXT,
-        relief="flat", bd=0, font=FONT_BODY, cursor="hand2",
-        padx=12, pady=6,
-    )
+def make_button(parent, text, command):
+    frame = tk.Frame(parent, bg=ACCENT, cursor="hand2")
+    lbl = tk.Label(frame, text=text, bg=ACCENT, fg="white",
+                   font=FONT_BODY, padx=12, pady=6, anchor="w")
+    lbl.pack(fill="both", expand=True)
+    def _click(e): command()
+    def _enter(e): lbl.configure(bg=ACCENT_HOVER); frame.configure(bg=ACCENT_HOVER)
+    def _leave(e): lbl.configure(bg=ACCENT); frame.configure(bg=ACCENT)
+    for w in (frame, lbl):
+        w.bind("<Button-1>", _click)
+        w.bind("<Enter>", _enter)
+        w.bind("<Leave>", _leave)
+    return frame
 
 
 def apply_treeview_style():
@@ -71,7 +81,7 @@ class MainMenuApp(tk.Tk):
         #Header 
         hdr = tk.Frame(self, bg=ACCENT, pady=18)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="📊  Social Media Analysis DB",
+        tk.Label(hdr, text="Social Media Analysis DB",
                  font=FONT_H1, bg=ACCENT, fg="white").pack()
         tk.Label(hdr, text="CS 5330  •  Spring 2026",
                  font=FONT_SMALL, bg=ACCENT, fg="#ddd").pack()
@@ -81,19 +91,19 @@ class MainMenuApp(tk.Tk):
         body.pack(fill="both", expand=True)
 
         sections = [
-            ("📥  Data Entry", [
+            ("Data Entry", [
                 ("Add Project Info",             self._stub("Add Project Info")),
-                ("Add Posts to a Project",        self._stub("Add Posts to Project")),
+                ("Add Posts to a Project",        self._open_add_posts),
                 ("Enter Analysis Results",        self._stub("Enter Analysis Results")),
-                ("Link Accounts → Same Person",   self._stub("Link Accounts")),
+                ("Link Accounts to Same Person",  self._open_link_accounts),
             ]),
-            ("🔍  Search Posts", [
-                ("Search by Platform",            self._stub("Search by Platform")),
-                ("Search by Date Range",          self._stub("Search by Date Range")),
+            ("Search Posts", [
+                ("Search by Platform",            self._open_search_by_platform),
+                ("Search by Date Range",          self._open_search_by_date_range),
                 ("Search by Username / Platform", self._stub("Search by Username")),
                 ("Search by Person Name",         self._stub("Search by Person Name")),
             ]),
-            ("🧪  Experiments", [
+            ("Experiments", [
                 ("Query Experiment Results",      self._open_experiment_query),
             ]),
         ]
@@ -104,8 +114,7 @@ class MainMenuApp(tk.Tk):
             f = tk.Frame(body, bg=BG)
             f.pack(fill="x")
             for label, cmd in buttons:
-                b = tk.Button(f, text=label, command=cmd, anchor="w", width=34)
-                style_button(b)
+                b = make_button(f, label, cmd)
                 b.pack(pady=2, fill="x")
 
         tk.Label(self, text="Credentials loaded from db_config.txt",
@@ -121,6 +130,18 @@ class MainMenuApp(tk.Tk):
 
     def _open_experiment_query(self):
         ExperimentQueryWindow(self)
+
+    def _open_add_posts(self):
+        AddPostsWindow(self)
+
+    def _open_link_accounts(self):
+        LinkAccountsWindow(self)
+
+    def _open_search_by_platform(self):
+        SearchByPlatformWindow(self)
+
+    def _open_search_by_date_range(self):
+        SearchByDateRangeWindow(self)
 
 
 
@@ -165,7 +186,7 @@ class ExperimentQueryWindow(tk.Toplevel):
         # Header
         hdr = tk.Frame(self, bg=ACCENT, pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="🧪  Query Experiment Results",
+        tk.Label(hdr, text="Query Experiment Results",
                  font=FONT_H2, bg=ACCENT, fg="white").pack()
 
         # Search bar
@@ -179,8 +200,7 @@ class ExperimentQueryWindow(tk.Toplevel):
                          insertbackground=TEXT, relief="flat", width=38)
         entry.pack(side="left", padx=(8, 12), ipady=4)
         entry.bind("<Return>", lambda _e: self._search())
-        b = tk.Button(sf, text="Search", command=self._search)
-        style_button(b)
+        b = make_button(sf, "Search", self._search)
         b.pack(side="left")
 
         # Status bar
