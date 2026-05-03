@@ -14,8 +14,10 @@ from emilio_screens import (
     AddPostsWindow, LinkAccountsWindow,
     SearchByPlatformWindow, SearchByDateRangeWindow,
 )
-
-
+from asha_screens import (
+    EnterProjectWindow, EnterAnalysisWindow,
+    SearchByUsernameWindow, SearchByNameWindow,
+)
 
 #  STYLE CONSTANTS
 BG           = "#1e1e2e"
@@ -92,16 +94,16 @@ class MainMenuApp(tk.Tk):
 
         sections = [
             ("Data Entry", [
-                ("Add Project Info",             self._stub("Add Project Info")),
-                ("Add Posts to a Project",        self._open_add_posts),
+                ("Add Project Info", lambda: EnterProjectWindow(self)),
+                ("Enter Analysis Results", lambda: EnterAnalysisWindow(self)),
                 ("Enter Analysis Results",        self._stub("Enter Analysis Results")),
                 ("Link Accounts to Same Person",  self._open_link_accounts),
             ]),
             ("Search Posts", [
                 ("Search by Platform",            self._open_search_by_platform),
                 ("Search by Date Range",          self._open_search_by_date_range),
-                ("Search by Username / Platform", self._stub("Search by Username")),
-                ("Search by Person Name",         self._stub("Search by Person Name")),
+                ("Search by Username / Platform", lambda: SearchByUsernameWindow(self)),
+                ("Search by Person Name", lambda: SearchByNameWindow(self)),
             ]),
             ("Experiments", [
                 ("Query Experiment Results",      self._open_experiment_query),
