@@ -94,10 +94,10 @@ class MainMenuApp(tk.Tk):
 
         sections = [
             ("Data Entry", [
-            ("Add Project Info",            lambda: EnterProjectWindow(self)),
-            ("Add Posts to a Project",      self._open_add_posts),
-            ("Enter Analysis Results",      lambda: EnterAnalysisWindow(self)),
-            ("Link Accounts to Same Person", self._open_link_accounts),
+                ("Add Project Info",            lambda: EnterProjectWindow(self)),
+                ("Add Posts to a Project",      self._open_add_posts),
+                ("Enter Analysis Results",      lambda: EnterAnalysisWindow(self)),
+                ("Link Accounts to Same Person", self._open_link_accounts),
 ]),
             ("Search Posts", [
                 ("Search by Platform",            self._open_search_by_platform),
