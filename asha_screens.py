@@ -12,20 +12,20 @@ from tkinter import ttk, messagebox
 from datetime import date
 from db_connection import get_connection
 
-BG          = "#1e1e2e"
-PANEL       = "#2a2a3e"
-ACCENT      = "#7c6af7"
-ACCENT_HOVER= "#9a8bff"
-TEXT        = "#e0e0f0"
-SUBTEXT     = "#a0a0c0"
-ENTRY_BG    = "#3a3a52"
-FONT_H1     = ("Segoe UI", 20, "bold")
-FONT_H2     = ("Segoe UI", 14, "bold")
-FONT_BODY   = ("Segoe UI", 11)
-FONT_SMALL  = ("Segoe UI", 9)
+BG           = "#1e1e2e"
+PANEL        = "#2a2a3e"
+ACCENT       = "#7c6af7"
+ACCENT_HOVER = "#9a8bff"
+TEXT         = "#e0e0f0"
+SUBTEXT      = "#a0a0c0"
+ENTRY_BG     = "#3a3a52"
+FONT_H1      = ("Segoe UI", 20, "bold")
+FONT_H2      = ("Segoe UI", 14, "bold")
+FONT_BODY    = ("Segoe UI", 11)
+FONT_SMALL   = ("Segoe UI", 9)
 
 
-# Shared helpers
+# Shared helpers 
 
 def make_button(parent, text, command):
     frame = tk.Frame(parent, bg=ACCENT, cursor="hand2")
@@ -54,7 +54,6 @@ def make_entry(parent, textvariable=None, width=30):
 
 
 def make_tree(parent, columns, height=12):
-    """columns: list of (col_id, heading, width)"""
     col_ids = [c[0] for c in columns]
     tree = ttk.Treeview(parent, columns=col_ids, show="headings", height=height)
     tree.tag_configure("odd",  background="#252538")
@@ -90,7 +89,9 @@ def validate_date(s):
     except Exception:
         return False
 
+
 # Enter Project Info
+
 
 class EnterProjectWindow(tk.Toplevel):
     def __init__(self, parent):
@@ -98,7 +99,7 @@ class EnterProjectWindow(tk.Toplevel):
         self.title("Add Project Info")
         self.configure(bg=BG)
         self.resizable(False, False)
-        center_window(self, 500, 460)
+        center_window(self, 500, 580)
         self._build()
 
     def _build(self):
@@ -112,12 +113,12 @@ class EnterProjectWindow(tk.Toplevel):
 
         self._vars = {}
         fields = [
-            ("Project Name *",              "project_name"),
-            ("Manager First Name *",        "mgr_first"),
-            ("Manager Last Name *",         "mgr_last"),
-            ("Institute Name *",            "institute"),
-            ("Start Date * (YYYY-MM-DD)",   "start_date"),
-            ("End Date *   (YYYY-MM-DD)",   "end_date"),
+            ("Project Name *",            "project_name"),
+            ("Manager First Name *",      "mgr_first"),
+            ("Manager Last Name *",       "mgr_last"),
+            ("Institute Name *",          "institute"),
+            ("Start Date * (YYYY-MM-DD)", "start_date"),
+            ("End Date *   (YYYY-MM-DD)", "end_date"),
         ]
         for i, (label, key) in enumerate(fields):
             make_label(body, label, anchor="w").grid(
@@ -127,7 +128,6 @@ class EnterProjectWindow(tk.Toplevel):
             make_entry(body, textvariable=v, width=28).grid(
                 row=i, column=1, padx=(14, 0), pady=6, sticky="w")
 
-        # Fields section header + dynamic field rows
         make_label(body, "Project Fields (one per line, optional):",
                    anchor="w").grid(row=len(fields), column=0,
                                     columnspan=2, sticky="w", pady=(14, 2))
@@ -143,8 +143,8 @@ class EnterProjectWindow(tk.Toplevel):
                    fg=SUBTEXT, font=FONT_SMALL, justify="left").grid(
             row=len(fields)+2, column=0, columnspan=2, sticky="w")
 
-        btn = make_button(self, "  Save Project", self._submit)
-        btn.pack(fill="x", padx=32, pady=(0, 20))
+        make_button(self, "  Save Project", self._submit).pack(
+            fill="x", padx=32, pady=(0, 20))
 
     def _submit(self):
         vals = {k: v.get().strip() for k, v in self._vars.items()}
@@ -209,7 +209,9 @@ class EnterProjectWindow(tk.Toplevel):
         except Exception as ex:
             messagebox.showerror("Database Error", str(ex), parent=self)
 
-# Enter Analysis Results
+
+# 2. Enter Analysis Results
+# Fixed: dropdown of posts linked to project
 
 class EnterAnalysisWindow(tk.Toplevel):
     def __init__(self, parent):
@@ -217,8 +219,9 @@ class EnterAnalysisWindow(tk.Toplevel):
         self.title("Enter Analysis Results")
         self.configure(bg=BG)
         self.resizable(False, True)
-        center_window(self, 540, 560)
+        center_window(self, 580, 600)
         self._field_entries = {}
+        self._post_map = {}   # display string -> post_id
         self._build()
 
     def _build(self):
@@ -230,22 +233,28 @@ class EnterAnalysisWindow(tk.Toplevel):
         top = tk.Frame(self, bg=BG, padx=28, pady=14)
         top.pack(fill="x")
 
-        make_label(top, "Project Name *", anchor="w").grid(row=0, column=0, sticky="w", pady=5)
+        # Step 1: project name + load posts button
+        make_label(top, "Project Name *", anchor="w").grid(
+            row=0, column=0, sticky="w", pady=5)
         self._proj_var = tk.StringVar()
         make_entry(top, textvariable=self._proj_var, width=26).grid(
             row=0, column=1, padx=12, pady=5, sticky="w")
+        make_button(top, "  Load Posts", self._load_posts).grid(
+            row=0, column=2, padx=8, pady=5)
 
-        make_label(top, "Post ID *", anchor="w").grid(row=1, column=0, sticky="w", pady=5)
+        # Step 2: dropdown of posts linked to this project
+        make_label(top, "Select Post *", anchor="w").grid(
+            row=1, column=0, sticky="w", pady=5)
         self._post_var = tk.StringVar()
-        make_entry(top, textvariable=self._post_var, width=26).grid(
-            row=1, column=1, padx=12, pady=5, sticky="w")
-
-        make_button(top, "  Load Fields", self._load_fields).grid(
-            row=1, column=2, padx=8, pady=5)
+        self._post_combo = ttk.Combobox(top, textvariable=self._post_var,
+                                        width=40, state="readonly",
+                                        font=FONT_BODY)
+        self._post_combo.grid(row=1, column=1, columnspan=2,
+                              padx=12, pady=5, sticky="w")
+        self._post_combo.bind("<<ComboboxSelected>>", lambda e: self._load_fields())
 
         make_label(self, "Fields — leave blank to skip:", anchor="w",
-                   fg=SUBTEXT, font=FONT_SMALL).pack(
-            fill="x", padx=28, pady=(4, 0))
+                   fg=SUBTEXT, font=FONT_SMALL).pack(fill="x", padx=28, pady=(4, 0))
 
         # Scrollable fields area
         outer = tk.Frame(self, bg=ENTRY_BG, bd=0)
@@ -266,14 +275,12 @@ class EnterAnalysisWindow(tk.Toplevel):
         make_button(self, "  Save Results", self._submit).pack(
             fill="x", padx=28, pady=(4, 20))
 
-    def _load_fields(self):
+    def _load_posts(self):
+        """Load all posts associated with this project into the dropdown."""
         project = self._proj_var.get().strip()
-        post_id = self._post_var.get().strip()
-        if not project or not post_id:
-            messagebox.showerror("Missing Info",
-                "Enter both Project Name and Post ID.", parent=self)
+        if not project:
+            messagebox.showerror("Missing Info", "Enter a Project Name first.", parent=self)
             return
-
         try:
             conn = get_connection()
             cur  = conn.cursor()
@@ -281,12 +288,58 @@ class EnterAnalysisWindow(tk.Toplevel):
             cur.execute("SELECT 1 FROM ResearchProject WHERE project_name = %s", (project,))
             if not cur.fetchone():
                 messagebox.showerror("Not Found",
-                    f"Project '{project}' not found.", parent=self); return
+                    f"Project '{project}' not found.", parent=self)
+                cur.close(); conn.close()
+                return
 
-            cur.execute("SELECT 1 FROM Post WHERE post_id = %s", (post_id,))
-            if not cur.fetchone():
-                messagebox.showerror("Not Found",
-                    f"Post ID '{post_id}' not found.", parent=self); return
+            cur.execute("""
+                SELECT p.post_id, p.username, p.media_name,
+                       LEFT(p.content, 50) AS preview
+                FROM ProjectPost pp
+                JOIN Post p ON pp.post_id = p.post_id
+                WHERE pp.project_name = %s
+                ORDER BY p.post_id
+            """, (project,))
+            rows = cur.fetchall()
+            cur.close(); conn.close()
+
+            self._post_map.clear()
+            for widget in self._fields_frame.winfo_children():
+                widget.destroy()
+            self._field_entries.clear()
+
+            if not rows:
+                messagebox.showinfo("No Posts",
+                    f"No posts are linked to '{project}' yet.\n"
+                    "Use 'Add Posts to a Project' first.", parent=self)
+                self._post_combo["values"] = []
+                self._post_var.set("")
+                return
+
+            options = []
+            for post_id, uname, media, preview in rows:
+                label = f"ID {post_id} | {uname}@{media} — {preview}"
+                self._post_map[label] = post_id
+                options.append(label)
+
+            self._post_combo["values"] = options
+            self._post_var.set(options[0])
+            self._load_fields()
+
+        except Exception as ex:
+            messagebox.showerror("Database Error", str(ex), parent=self)
+
+    def _load_fields(self):
+        """Load fields for the selected post and pre-fill any existing values."""
+        project  = self._proj_var.get().strip()
+        selected = self._post_var.get()
+        post_id  = self._post_map.get(selected)
+        if not post_id:
+            return
+
+        try:
+            conn = get_connection()
+            cur  = conn.cursor()
 
             cur.execute(
                 "SELECT field_name FROM Field WHERE project_name = %s ORDER BY field_name",
@@ -306,8 +359,9 @@ class EnterAnalysisWindow(tk.Toplevel):
 
             if not fields:
                 make_label(self._fields_frame,
-                    "No fields defined for this project.",
-                    fg=SUBTEXT).pack(pady=12)
+                    "No fields defined for this project.\n"
+                    "Add fields in 'Add Project Info' first.",
+                    fg=SUBTEXT, bg=ENTRY_BG).pack(pady=12)
                 return
 
             for i, fname in enumerate(fields):
@@ -324,26 +378,33 @@ class EnterAnalysisWindow(tk.Toplevel):
             messagebox.showerror("Database Error", str(ex), parent=self)
 
     def _submit(self):
-        project = self._proj_var.get().strip()
-        post_id = self._post_var.get().strip()
-        if not project or not post_id:
+        project  = self._proj_var.get().strip()
+        selected = self._post_var.get()
+        post_id  = self._post_map.get(selected)
+
+        if not project:
+            messagebox.showerror("Missing Info", "Enter a Project Name.", parent=self)
+            return
+        if not post_id:
             messagebox.showerror("Missing Info",
-                "Enter both Project Name and Post ID.", parent=self); return
+                "Load posts and select one first.", parent=self)
+            return
         if not self._field_entries:
             messagebox.showerror("No Fields",
-                "Load fields first.", parent=self); return
+                "No fields to save. This project has no fields defined.", parent=self)
+            return
 
         filled = {f: e.get().strip()
                   for f, e in self._field_entries.items() if e.get().strip()}
         if not filled:
             messagebox.showwarning("Nothing to Save",
-                "No field values were entered.", parent=self); return
+                "No field values were entered.", parent=self)
+            return
 
         try:
             conn = get_connection()
             cur  = conn.cursor()
 
-            # Ensure the post is linked to the project
             cur.execute("""
                 INSERT IGNORE INTO ProjectPost (project_name, post_id)
                 VALUES (%s, %s)
@@ -364,7 +425,11 @@ class EnterAnalysisWindow(tk.Toplevel):
         except Exception as ex:
             messagebox.showerror("Database Error", str(ex), parent=self)
 
-# Search Posts by Username & Platform
+
+
+# 3. Search Posts by Username & Platform
+# Fixed: projects from ProjectPost, full content popup on row click
+
 
 class SearchByUsernameWindow(tk.Toplevel):
     def __init__(self, parent):
@@ -372,7 +437,8 @@ class SearchByUsernameWindow(tk.Toplevel):
         self.title("Search Posts by Username & Platform")
         self.configure(bg=BG)
         self.resizable(True, True)
-        center_window(self, 900, 500)
+        center_window(self, 920, 520)
+        self._rows = []
         self._build()
 
     def _build(self):
@@ -384,17 +450,26 @@ class SearchByUsernameWindow(tk.Toplevel):
         sf = tk.Frame(self, bg=PANEL, pady=12, padx=20)
         sf.pack(fill="x")
 
-        make_label(sf, "Username *", bg=PANEL).grid(row=0, column=0, sticky="w", padx=(0,8))
+        make_label(sf, "Username *", bg=PANEL).grid(
+            row=0, column=0, sticky="w", padx=(0, 8))
         self._user_var = tk.StringVar()
-        make_entry(sf, textvariable=self._user_var, width=22).grid(row=0, column=1, padx=(0,20))
+        make_entry(sf, textvariable=self._user_var, width=22).grid(
+            row=0, column=1, padx=(0, 20))
 
-        make_label(sf, "Platform *", bg=PANEL).grid(row=0, column=2, sticky="w", padx=(0,8))
+        make_label(sf, "Platform *", bg=PANEL).grid(
+            row=0, column=2, sticky="w", padx=(0, 8))
         self._plat_var = tk.StringVar()
-        make_entry(sf, textvariable=self._plat_var, width=22).grid(row=0, column=3, padx=(0,16))
+        make_entry(sf, textvariable=self._plat_var, width=22).grid(
+            row=0, column=3, padx=(0, 16))
 
         make_button(sf, "  Search", self._search).grid(row=0, column=4)
 
-        self._status_var = tk.StringVar(value="Enter username and platform, then press Search.")
+        make_label(sf, "Click a row to view full post content.",
+                   bg=PANEL, fg=SUBTEXT, font=FONT_SMALL).grid(
+            row=1, column=0, columnspan=5, sticky="w", pady=(4, 0))
+
+        self._status_var = tk.StringVar(
+            value="Enter username and platform, then press Search.")
         tk.Label(self, textvariable=self._status_var, font=FONT_SMALL,
                  bg=BG, fg=SUBTEXT, anchor="w").pack(fill="x", padx=16, pady=(6, 0))
 
@@ -402,51 +477,78 @@ class SearchByUsernameWindow(tk.Toplevel):
         tree_frame.pack(fill="both", expand=True, padx=12, pady=8)
 
         self._tree = make_tree(tree_frame, [
-            ("post_id",  "Post ID",  70),
-            ("platform", "Platform", 110),
-            ("username", "Username", 120),
-            ("post_time","Posted At", 140),
-            ("projects", "Projects", 150),
-            ("content",  "Content Preview", 280),
+            ("post_id",  "Post ID",         70),
+            ("platform", "Platform",        120),
+            ("username", "Username",        130),
+            ("post_time","Posted At",       150),
+            ("projects", "Projects",        180),
+            ("content",  "Content Preview", 240),
         ])
+        self._tree.bind("<<TreeviewSelect>>", self._on_select)
 
     def _search(self):
         username = self._user_var.get().strip()
         platform = self._plat_var.get().strip()
         if not username or not platform:
             messagebox.showerror("Missing Fields",
-                "Both Username and Platform are required.", parent=self); return
+                "Both Username and Platform are required.", parent=self)
+            return
         try:
             conn = get_connection()
             cur  = conn.cursor()
             cur.execute("""
                 SELECT p.post_id, p.media_name, p.username, p.post_time,
-                       GROUP_CONCAT(DISTINCT ar.project_name
-                                    ORDER BY ar.project_name SEPARATOR ', ') AS projects,
-                       LEFT(p.content, 90) AS preview
+                       GROUP_CONCAT(DISTINCT pp.project_name
+                                    ORDER BY pp.project_name SEPARATOR ', ') AS projects,
+                       p.content
                 FROM Post p
-                LEFT JOIN AnalysisResult ar ON ar.post_id = p.post_id
+                LEFT JOIN ProjectPost pp ON pp.post_id = p.post_id
                 WHERE p.username = %s AND p.media_name = %s
                 GROUP BY p.post_id
                 ORDER BY p.post_time DESC
             """, (username, platform))
-            rows = cur.fetchall()
+            self._rows = cur.fetchall()
             cur.close(); conn.close()
 
             self._tree.delete(*self._tree.get_children())
-            for i, (pid, media, uname, ptime, projs, preview) in enumerate(rows):
+            for i, (pid, media, uname, ptime, projs, content) in enumerate(self._rows):
                 tag = "odd" if i % 2 else "even"
+                preview = (content[:80] + "…") if content and len(content) > 80 else (content or "")
                 self._tree.insert("", "end", tags=(tag,), values=(
                     pid, media, uname,
                     str(ptime) if ptime else "",
-                    projs or "",
-                    (preview + "…") if preview and len(preview) == 90 else (preview or "")
+                    projs or "(none)",
+                    preview
                 ))
-            self._status_var.set(f"{len(rows)} post(s) found.")
+            self._status_var.set(f"{len(self._rows)} post(s) found.")
         except Exception as ex:
             messagebox.showerror("Database Error", str(ex), parent=self)
 
-# Search Posts by Person's First / Last Name
+    def _on_select(self, _event):
+        sel = self._tree.selection()
+        if not sel:
+            return
+        idx = self._tree.index(sel[0])
+        if idx >= len(self._rows):
+            return
+        pid, media, uname, ptime, projs, content = self._rows[idx]
+        popup = tk.Toplevel(self)
+        popup.title(f"Post {pid} — Full Content")
+        popup.configure(bg=BG)
+        center_window(popup, 500, 340)
+        tk.Label(popup, text=f"Post ID {pid} | {uname}@{media} | {ptime}",
+                 bg=ACCENT, fg="white", font=FONT_BODY, pady=8).pack(fill="x")
+        tk.Label(popup, text=f"Projects: {projs or '(none)'}",
+                 bg=PANEL, fg=SUBTEXT, font=FONT_SMALL, pady=4).pack(fill="x")
+        txt = tk.Text(popup, bg=ENTRY_BG, fg=TEXT, font=FONT_BODY,
+                      wrap="word", padx=12, pady=8, relief="flat")
+        txt.insert("1.0", content or "")
+        txt.configure(state="disabled")
+        txt.pack(fill="both", expand=True, padx=12, pady=8)
+
+
+# 4. Search Posts by Person's First / Last Name
+# Fixed: ProjectPost for projects, NULL name handling, full content popup
 
 class SearchByNameWindow(tk.Toplevel):
     def __init__(self, parent):
@@ -454,7 +556,8 @@ class SearchByNameWindow(tk.Toplevel):
         self.title("Search Posts by Person Name")
         self.configure(bg=BG)
         self.resizable(True, True)
-        center_window(self, 920, 500)
+        center_window(self, 960, 520)
+        self._rows = []
         self._build()
 
     def _build(self):
@@ -466,18 +569,24 @@ class SearchByNameWindow(tk.Toplevel):
         sf = tk.Frame(self, bg=PANEL, pady=12, padx=20)
         sf.pack(fill="x")
 
-        make_label(sf, "First Name", bg=PANEL).grid(row=0, column=0, sticky="w", padx=(0,8))
+        make_label(sf, "First Name", bg=PANEL).grid(
+            row=0, column=0, sticky="w", padx=(0, 8))
         self._first_var = tk.StringVar()
-        make_entry(sf, textvariable=self._first_var, width=20).grid(row=0, column=1, padx=(0,20))
+        make_entry(sf, textvariable=self._first_var, width=20).grid(
+            row=0, column=1, padx=(0, 20))
 
-        make_label(sf, "Last Name", bg=PANEL).grid(row=0, column=2, sticky="w", padx=(0,8))
+        make_label(sf, "Last Name", bg=PANEL).grid(
+            row=0, column=2, sticky="w", padx=(0, 8))
         self._last_var = tk.StringVar()
-        make_entry(sf, textvariable=self._last_var, width=20).grid(row=0, column=3, padx=(0,16))
+        make_entry(sf, textvariable=self._last_var, width=20).grid(
+            row=0, column=3, padx=(0, 16))
 
         make_button(sf, "  Search", self._search).grid(row=0, column=4)
 
-        tk.Label(sf, text="(at least one name required)", font=FONT_SMALL,
-                 bg=PANEL, fg=SUBTEXT).grid(row=1, column=0, columnspan=5, sticky="w", pady=(4,0))
+        make_label(sf,
+            "(at least one name required) — Click a row to view full content.",
+            bg=PANEL, fg=SUBTEXT, font=FONT_SMALL).grid(
+            row=1, column=0, columnspan=5, sticky="w", pady=(4, 0))
 
         self._status_var = tk.StringVar(value="Enter a first name, last name, or both.")
         tk.Label(self, textvariable=self._status_var, font=FONT_SMALL,
@@ -487,21 +596,23 @@ class SearchByNameWindow(tk.Toplevel):
         tree_frame.pack(fill="both", expand=True, padx=12, pady=8)
 
         self._tree = make_tree(tree_frame, [
-            ("post_id",     "Post ID",      70),
-            ("platform",    "Platform",     110),
-            ("username",    "Username",     120),
-            ("poster_name", "Poster Name",  130),
-            ("post_time",   "Posted At",    140),
-            ("projects",    "Projects",     130),
-            ("content",     "Content Preview", 230),
+            ("post_id",     "Post ID",       65),
+            ("platform",    "Platform",      110),
+            ("username",    "Username",      120),
+            ("poster_name", "Poster Name",   130),
+            ("post_time",   "Posted At",     140),
+            ("projects",    "Projects",      150),
+            ("content",     "Content Preview", 200),
         ])
+        self._tree.bind("<<TreeviewSelect>>", self._on_select)
 
     def _search(self):
         first = self._first_var.get().strip()
         last  = self._last_var.get().strip()
         if not first and not last:
             messagebox.showerror("Missing Fields",
-                "Enter at least a first or last name.", parent=self); return
+                "Enter at least a first or last name.", parent=self)
+            return
 
         conditions, params = [], []
         if first:
@@ -517,32 +628,58 @@ class SearchByNameWindow(tk.Toplevel):
             cur  = conn.cursor()
             cur.execute(f"""
                 SELECT p.post_id, p.media_name, p.username,
-                       CONCAT(COALESCE(ua.first_name,''), ' ',
-                              COALESCE(ua.last_name,''))  AS poster_name,
+                       TRIM(CONCAT(COALESCE(ua.first_name, ''), ' ',
+                                   COALESCE(ua.last_name,  ''))) AS poster_name,
                        p.post_time,
-                       GROUP_CONCAT(DISTINCT ar.project_name
-                                    ORDER BY ar.project_name SEPARATOR ', ') AS projects,
-                       LEFT(p.content, 85) AS preview
+                       GROUP_CONCAT(DISTINCT pp.project_name
+                                    ORDER BY pp.project_name SEPARATOR ', ') AS projects,
+                       p.content
                 FROM Post p
                 JOIN UserAccount ua
                   ON ua.username = p.username AND ua.media_name = p.media_name
-                LEFT JOIN AnalysisResult ar ON ar.post_id = p.post_id
+                LEFT JOIN ProjectPost pp ON pp.post_id = p.post_id
                 WHERE {where}
                 GROUP BY p.post_id
                 ORDER BY p.post_time DESC
             """, params)
-            rows = cur.fetchall()
+            self._rows = cur.fetchall()
             cur.close(); conn.close()
 
             self._tree.delete(*self._tree.get_children())
-            for i, (pid, media, uname, pname, ptime, projs, preview) in enumerate(rows):
+            for i, (pid, media, uname, pname, ptime, projs, content) in enumerate(self._rows):
                 tag = "odd" if i % 2 else "even"
+                preview = (content[:75] + "…") if content and len(content) > 75 else (content or "")
                 self._tree.insert("", "end", tags=(tag,), values=(
-                    pid, media, uname, pname.strip(),
+                    pid, media, uname,
+                    pname or "(no name)",
                     str(ptime) if ptime else "",
-                    projs or "",
-                    (preview + "…") if preview and len(preview) == 85 else (preview or "")
+                    projs or "(none)",
+                    preview
                 ))
-            self._status_var.set(f"{len(rows)} post(s) found.")
+            self._status_var.set(f"{len(self._rows)} post(s) found.")
         except Exception as ex:
             messagebox.showerror("Database Error", str(ex), parent=self)
+
+    def _on_select(self, _event):
+        sel = self._tree.selection()
+        if not sel:
+            return
+        idx = self._tree.index(sel[0])
+        if idx >= len(self._rows):
+            return
+        pid, media, uname, pname, ptime, projs, content = self._rows[idx]
+        popup = tk.Toplevel(self)
+        popup.title(f"Post {pid} — Full Content")
+        popup.configure(bg=BG)
+        center_window(popup, 500, 340)
+        tk.Label(popup, text=f"Post ID {pid} | {uname}@{media} | {ptime}",
+                 bg=ACCENT, fg="white", font=FONT_BODY, pady=8).pack(fill="x")
+        tk.Label(popup,
+                 text=f"Poster: {pname or '(no name)'} | Projects: {projs or '(none)'}",
+                 bg=PANEL, fg=SUBTEXT, font=FONT_SMALL, pady=4).pack(fill="x")
+        txt = tk.Text(popup, bg=ENTRY_BG, fg=TEXT, font=FONT_BODY,
+                      wrap="word", padx=12, pady=8, relief="flat")
+        txt.insert("1.0", content or "")
+        txt.configure(state="disabled")
+        txt.pack(fill="both", expand=True, padx=12, pady=8)
+
