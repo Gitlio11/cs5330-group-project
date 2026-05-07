@@ -95,6 +95,7 @@ class MainMenuApp(tk.Tk):
         sections = [
             ("Data Entry", [
                 ("Add Project Info",            lambda: EnterProjectWindow(self)),
+                ("Add Post",                    self._open_add_post),
                 ("Add Posts to a Project",      self._open_add_posts),
                 ("Enter Analysis Results",      lambda: EnterAnalysisWindow(self)),
                 ("Link Accounts to Same Person", self._open_link_accounts),
@@ -133,6 +134,9 @@ class MainMenuApp(tk.Tk):
     def _open_experiment_query(self):
         ExperimentQueryWindow(self)
 
+    def _open_add_post(self):
+        AddPostWindow(self)
+
     def _open_add_posts(self):
         AddPostsWindow(self)
 
@@ -145,6 +149,135 @@ class MainMenuApp(tk.Tk):
     def _open_search_by_date_range(self):
         SearchByDateRangeWindow(self)
 
+
+
+#  ADD POST WINDOW (Savannah)
+class AddPostWindow(tk.Toplevel):
+    """
+    Allows a post to be entered independently without needing a project.
+    Post is saved to the Post table only.
+    Username + media_name must already exist in UserAccount.
+    """
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("Add Post")
+        self.configure(bg=BG)
+        self.resizable(False, False)
+        self._center(480, 520)
+        self._build()
+
+    def _center(self, w, h):
+        self.update_idletasks()
+        sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
+        self.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2}")
+
+    def _build(self):
+        # Header
+        hdr = tk.Frame(self, bg=ACCENT, pady=10)
+        hdr.pack(fill="x")
+        tk.Label(hdr, text="Add Post", font=FONT_H2,
+                 bg=ACCENT, fg="white").pack()
+
+        body = tk.Frame(self, bg=BG, padx=30, pady=20)
+        body.pack(fill="both", expand=True)
+
+        # Fields
+        fields = [
+            ("Username:",       "username"),
+            ("Platform:",       "media_name"),
+            ("Post Time (YYYY-MM-DD HH:MM):", "post_time"),
+            ("City (optional):", "city"),
+            ("State (optional):", "state"),
+            ("Country (optional):", "country"),
+            ("Likes (optional):", "likes"),
+            ("Dislikes (optional):", "dislikes"),
+        ]
+
+        self._vars = {}
+        for label, key in fields:
+            tk.Label(body, text=label, font=FONT_BODY,
+                     bg=BG, fg=TEXT, anchor="w").pack(fill="x")
+            var = tk.StringVar()
+            tk.Entry(body, textvariable=var, font=FONT_BODY,
+                     bg=ENTRY_BG, fg=TEXT, insertbackground=TEXT,
+                     relief="flat").pack(fill="x", pady=(0, 8), ipady=4)
+            self._vars[key] = var
+
+        # Has multimedia checkbox
+        self._multimedia = tk.BooleanVar(value=False)
+        tk.Checkbutton(body, text="Has multimedia?",
+                       variable=self._multimedia,
+                       bg=BG, fg=TEXT, selectcolor=ENTRY_BG,
+                       font=FONT_BODY).pack(anchor="w")
+
+        # Post content
+        tk.Label(body, text="Post Content:", font=FONT_BODY,
+                 bg=BG, fg=TEXT, anchor="w").pack(fill="x", pady=(8, 0))
+        self._content = tk.Text(body, font=FONT_BODY, bg=ENTRY_BG,
+                                fg=TEXT, insertbackground=TEXT,
+                                relief="flat", height=4)
+        self._content.pack(fill="x", pady=(0, 12))
+
+        # Repost of
+        tk.Label(body, text="Repost of Post ID (optional):", font=FONT_BODY,
+                 bg=BG, fg=TEXT, anchor="w").pack(fill="x")
+        self._repost_var = tk.StringVar()
+        tk.Entry(body, textvariable=self._repost_var, font=FONT_BODY,
+                 bg=ENTRY_BG, fg=TEXT, insertbackground=TEXT,
+                 relief="flat").pack(fill="x", pady=(0, 12), ipady=4)
+
+        # Submit button
+        b = make_button(body, "Save Post", self._save)
+        b.pack(fill="x")
+
+    def _save(self):
+        # Get values
+        username   = self._vars["username"].get().strip()
+        media_name = self._vars["media_name"].get().strip()
+        post_time  = self._vars["post_time"].get().strip()
+        content    = self._content.get("1.0", "end").strip()
+        city       = self._vars["city"].get().strip() or None
+        state      = self._vars["state"].get().strip() or None
+        country    = self._vars["country"].get().strip() or None
+        likes      = self._vars["likes"].get().strip() or None
+        dislikes   = self._vars["dislikes"].get().strip() or None
+        multimedia = self._multimedia.get()
+        repost_of  = self._repost_var.get().strip() or None
+
+        # Basic validation
+        if not username or not media_name or not post_time or not content:
+            messagebox.showwarning("Missing fields",
+                                   "Username, Platform, Post Time, and Content are required.")
+            return
+
+        try:
+            likes    = int(likes)    if likes    else None
+            dislikes = int(dislikes) if dislikes else None
+            repost_of = int(repost_of) if repost_of else None
+        except ValueError:
+            messagebox.showwarning("Invalid input",
+                                   "Likes, Dislikes, and Repost ID must be numbers.")
+            return
+
+        try:
+            conn = get_connection()
+            cur  = conn.cursor()
+            cur.execute("""
+                INSERT INTO Post
+                    (username, media_name, content, post_time,
+                     city, state, country, likes, dislikes,
+                     has_multimedia, repost_of)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (username, media_name, content, post_time,
+                  city, state, country, likes, dislikes,
+                  multimedia, repost_of))
+            conn.commit()
+            conn.close()
+            messagebox.showinfo("Success", "Post saved successfully!")
+            self.destroy()
+        except Exception as exc:
+            messagebox.showerror("Database Error", str(exc))
 
 
 #  EXPERIMENT QUERY WINDOW 
