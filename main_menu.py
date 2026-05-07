@@ -11,7 +11,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from db_connection import get_connection
 from emilio_screens import (
-    AddPostsWindow, LinkAccountsWindow,
+    AddPostsWindow, LinkAccountsWindow, ViewPersonsWindow,
     SearchByPlatformWindow, SearchByDateRangeWindow,
 )
 from asha_screens import (
@@ -96,6 +96,7 @@ class MainMenuApp(tk.Tk):
             ("Data Entry", [
                 ("Add User Account",              self._open_add_user),
                 ("Add Person",                    self._open_add_person),
+                ("View Persons",                  lambda: ViewPersonsWindow(self)),
                 ("Link Accounts to Same Person",  self._open_link_accounts),
                 ("Add Project Info",              lambda: EnterProjectWindow(self)),
                 ("Add Post",                      self._open_add_post),
