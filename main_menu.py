@@ -226,8 +226,9 @@ class ExperimentQueryWindow(tk.Toplevel):
                 ("post_id",      "ID",           55),
                 ("username",     "Username",     140),
                 ("media_name",   "Platform",     110),
+                ("person",       "Person",       140),
                 ("post_time",    "Posted At",    145),
-                ("preview",      "Post Content (preview)", 360),
+                ("preview",      "Post Content (preview)", 280),
             ],
             height=8,
         )
@@ -321,14 +322,21 @@ class ExperimentQueryWindow(tk.Toplevel):
             self._project_name = project["project_name"]
 
             #  2. Load all posts for the project
+            # LEFT JOIN Person to show real name if account is linked to one
             cur.execute("""
                 SELECT p.post_id,
                        p.username,
                        p.media_name,
                        p.post_time,
-                       LEFT(p.content, 80) AS preview
+                       LEFT(p.content, 80) AS preview,
+                       per.first_name      AS person_first,
+                       per.last_name       AS person_last
                 FROM   ProjectPost  pp
-                JOIN   Post         p  ON pp.post_id    = p.post_id
+                JOIN   Post         p   ON pp.post_id    = p.post_id
+                LEFT JOIN AccountOwnership ao
+                       ON  ao.username   = p.username
+                       AND ao.media_name = p.media_name
+                LEFT JOIN Person per ON per.person_id = ao.person_id
                 WHERE  pp.project_name = %s
                 ORDER BY p.post_time DESC
             """, (self._project_name,))
@@ -337,10 +345,16 @@ class ExperimentQueryWindow(tk.Toplevel):
             for i, row in enumerate(posts):
                 tag     = "odd" if i % 2 else "even"
                 preview = (row["preview"] + "…") if row["preview"] else ""
+                # Show person name if available, otherwise unknown
+                if row["person_first"] or row["person_last"]:
+                    person = f"{row['person_first'] or ''} {row['person_last'] or ''}".strip()
+                else:
+                    person = "(unknown)"
                 iid = self._posts_tree.insert("", "end", tags=(tag,), values=(
                     row["post_id"],
                     row["username"],
                     row["media_name"],
+                    person,
                     str(row["post_time"]),
                     preview,
                 ))
