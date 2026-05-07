@@ -94,14 +94,14 @@ class MainMenuApp(tk.Tk):
 
         sections = [
             ("Data Entry", [
-                ("Add Project Info",            lambda: EnterProjectWindow(self)),
-                ("Add User Account",            self._open_add_user),
-                ("Add Person",                  self._open_add_person),
-                ("Link Accounts to Same Person", self._open_link_accounts),
-                ("Add Post",                    self._open_add_post),
-                ("Add Posts to a Project",      self._open_add_posts),
-                ("Enter Analysis Results",      lambda: EnterAnalysisWindow(self)),
-]),
+                ("Add User Account",              self._open_add_user),
+                ("Add Person",                    self._open_add_person),
+                ("Link Accounts to Same Person",  self._open_link_accounts),
+                ("Add Project Info",              lambda: EnterProjectWindow(self)),
+                ("Add Post",                      self._open_add_post),
+                ("Link Posts and Projects",       self._open_add_posts),
+                ("Enter Analysis Results",        lambda: EnterAnalysisWindow(self)),
+        ]),
             ("Search Posts", [
                 ("Search by Platform",            self._open_search_by_platform),
                 ("Search by Date Range",          self._open_search_by_date_range),
@@ -487,8 +487,9 @@ class AddPostWindow(tk.Toplevel):
                   city, state, country, likes, dislikes,
                   multimedia, repost_of))
             conn.commit()
+            post_id = cur.lastrowid
             conn.close()
-            messagebox.showinfo("Success", "Post saved successfully!")
+            messagebox.showinfo("Success", f"Post saved successfully!\nPost ID: {post_id}")
             self.destroy()
         except Exception as exc:
             messagebox.showerror("Database Error", str(exc))
