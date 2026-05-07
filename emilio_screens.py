@@ -63,93 +63,50 @@ def center_window(win, w, h):
 class AddPostsWindow(tk.Toplevel):
     def __init__(self, parent):
         super().__init__(parent)
-        self.title("Add Post to Project")
+        self.title("Link Posts and Projects")
         self.configure(bg=BG)
         self.resizable(False, False)
-        center_window(self, 560, 700)
+        center_window(self, 560, 280)  # CHANGED: smaller window, just 2 fields
         self._build()
 
     def _build(self):
         hdr = tk.Frame(self, bg=ACCENT, pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="Add Post to Project",
+        tk.Label(hdr, text="Link Posts and Projects",
                  font=FONT_H2, bg=ACCENT, fg="white").pack()
 
         form = tk.Frame(self, bg=PANEL, padx=16, pady=16)
         form.pack(fill="x", padx=20, pady=16)
 
         self._project = tk.StringVar()
-        self._username = tk.StringVar()
-        self._media = tk.StringVar()
-        self._post_time = tk.StringVar()
-        self._content = tk.StringVar()
-        self._city = tk.StringVar()
-        self._state = tk.StringVar()
-        self._country = tk.StringVar()
-        self._likes = tk.StringVar()
-        self._dislikes = tk.StringVar()
-        self._repost_of = tk.StringVar()
-        self._multimedia = tk.BooleanVar(value=False)
+        self._post_id_link = tk.StringVar()
 
-        fields = [
-            ("Project name *",                 self._project),
-            ("Username *",                     self._username),
-            ("Platform (media_name) *",        self._media),
-            ("Post time * (YYYY-MM-DD HH:MM)", self._post_time),
-            ("Content *",                      self._content),
-            ("City",                           self._city),
-            ("State",                          self._state),
-            ("Country",                        self._country),
-            ("Likes",                          self._likes),
-            ("Dislikes",                       self._dislikes),
-            ("Repost of (post_id)",            self._repost_of),
-        ]
-        for i, (label, var) in enumerate(fields):
-            labeled_entry(form, label, i, var)
+        labeled_entry(form, "Project name *", 0, self._project)
+        labeled_entry(form, "Post ID *",       1, self._post_id_link)
 
-        tk.Label(form, text="Has multimedia", font=FONT_BODY,
-                 bg=PANEL, fg=TEXT).grid(row=len(fields), column=0,
-                                         sticky="e", padx=(12, 6), pady=4)
-        tk.Checkbutton(form, variable=self._multimedia,
-                       bg=PANEL, fg=TEXT, selectcolor=ENTRY_BG,
-                       activebackground=PANEL).grid(
-            row=len(fields), column=1, sticky="w")
-
-        self._status = tk.StringVar(value="Fill in required (*) fields and click Submit.")
+        self._status = tk.StringVar(value="Enter a project name and post ID to link.")
         tk.Label(self, textvariable=self._status, font=FONT_SMALL,
                  bg=BG, fg=SUBTEXT, wraplength=520, anchor="w").pack(
             fill="x", padx=20, pady=(0, 4))
 
-        btn = make_button(self, "Submit", self._submit)
-        btn.pack(pady=(0, 16), padx=20, fill="x")
+        make_button(self, "Submit", self._submit).pack(pady=(0, 16), padx=20, fill="x")
 
     def _submit(self):
         project = self._project.get().strip()
-        username = self._username.get().strip()
-        media = self._media.get().strip()
-        post_time = self._post_time.get().strip()
-        content = self._content.get().strip()
+        raw_id  = self._post_id_link.get().strip()
 
-        if not all([project, username, media, post_time, content]):
+        if not project or not raw_id:
             messagebox.showwarning("Missing fields",
-                                   "Please fill in all required (*) fields.")
+                                   "Both Project name and Post ID are required.")
+            return
+        if not raw_id.isdigit():
+            messagebox.showwarning("Invalid", "Post ID must be a number.")
             return
 
-        def int_or_none(s):
-            s = s.strip()
-            return int(s) if s.isdigit() else None
-
-        likes = int_or_none(self._likes.get())
-        dislikes = int_or_none(self._dislikes.get())
-        raw_rep = self._repost_of.get().strip()
-        repost_of = int(raw_rep) if raw_rep.isdigit() else None
-        city = self._city.get().strip() or None
-        state = self._state.get().strip() or None
-        country = self._country.get().strip() or None
-
+        post_id = int(raw_id)
         try:
             conn = get_connection()
-            cur = conn.cursor(dictionary=True)
+            cur  = conn.cursor(dictionary=True)
 
             cur.execute("SELECT 1 FROM ResearchProject WHERE project_name = %s", (project,))
             if not cur.fetchone():
@@ -157,35 +114,14 @@ class AddPostsWindow(tk.Toplevel):
                 conn.close()
                 return
 
-            cur.execute("INSERT IGNORE INTO SocialMedia (media_name) VALUES (%s)", (media,))
-            cur.execute("INSERT IGNORE INTO UserAccount (username, media_name) VALUES (%s, %s)",
-                        (username, media))
-
-            cur.execute("""
-                SELECT post_id FROM Post
-                WHERE username = %s AND media_name = %s AND post_time = %s
-            """, (username, media, post_time))
-            existing = cur.fetchone()
-
-            if existing:
-                post_id = existing["post_id"]
-                self._status.set(f"Post already exists (id={post_id}). Linking to project.")
-            else:
-                cur.execute("""
-                    INSERT INTO Post
-                        (username, media_name, content, post_time,
-                         city, state, country, likes, dislikes,
-                         has_multimedia, repost_of)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """, (username, media, content, post_time,
-                      city, state, country, likes, dislikes,
-                      self._multimedia.get(), repost_of))
-                post_id = cur.lastrowid
-                self._status.set(f"Post created (id={post_id}). Linking to project.")
+            cur.execute("SELECT 1 FROM Post WHERE post_id = %s", (post_id,))
+            if not cur.fetchone():
+                messagebox.showerror("Not found", f"No post with ID {post_id}.")
+                conn.close()
+                return
 
             cur.execute("INSERT IGNORE INTO ProjectPost (project_name, post_id) VALUES (%s, %s)",
                         (project, post_id))
-
             conn.commit()
             conn.close()
             messagebox.showinfo("Success", f"Post (id={post_id}) linked to '{project}'.")
@@ -195,11 +131,8 @@ class AddPostsWindow(tk.Toplevel):
             messagebox.showerror("Database Error", str(exc))
 
     def _clear(self):
-        for var in (self._project, self._username, self._media, self._post_time,
-                    self._content, self._city, self._state, self._country,
-                    self._likes, self._dislikes, self._repost_of):
-            var.set("")
-        self._multimedia.set(False)
+        self._project.set("")
+        self._post_id_link.set("")
 
 
 class LinkAccountsWindow(tk.Toplevel):
@@ -208,7 +141,7 @@ class LinkAccountsWindow(tk.Toplevel):
         self.title("Link Accounts to Same Person")
         self.configure(bg=BG)
         self.resizable(False, False)
-        center_window(self, 520, 480)
+        center_window(self, 620, 500)
         self._build()
 
     def _build(self):
@@ -254,7 +187,7 @@ class LinkAccountsWindow(tk.Toplevel):
         self._status = tk.StringVar(
             value="Create a new person or enter an existing ID, then link an account.")
         tk.Label(self, textvariable=self._status, font=FONT_SMALL,
-                 bg=BG, fg=SUBTEXT, wraplength=480, anchor="w").pack(
+                 bg=BG, fg=SUBTEXT, wraplength=580, anchor="w").pack(
             fill="x", padx=20, pady=(0, 4))
 
         btn = make_button(self, "Link Account", self._submit)
@@ -265,9 +198,11 @@ class LinkAccountsWindow(tk.Toplevel):
         tree_frame = tk.Frame(self, bg=BG)
         tree_frame.pack(fill="both", expand=True, padx=20, pady=(0, 12))
         self._link_tree = make_tree(tree_frame, [
-            ("person_id", "Person ID", 90),
-            ("username",  "Username",  160),
-            ("media_name","Platform",  140),
+            ("person_id",  "Person ID",  80),
+            ("first_name", "First Name", 110),
+            ("last_name",  "Last Name",  110),
+            ("username",   "Username",   130),
+            ("media_name", "Platform",   110),
         ], height=5)
         self._load_links()
 
@@ -282,11 +217,21 @@ class LinkAccountsWindow(tk.Toplevel):
         try:
             conn = get_connection()
             cur = conn.cursor(dictionary=True)
-            cur.execute("SELECT person_id, username, media_name FROM AccountOwnership ORDER BY person_id, username")
+            cur.execute("""
+                SELECT ao.person_id, p.first_name, p.last_name,
+                       ao.username, ao.media_name
+                FROM AccountOwnership ao
+                JOIN Person p ON p.person_id = ao.person_id
+                ORDER BY ao.person_id, ao.username
+            """)
             for i, row in enumerate(cur.fetchall()):
                 tag = "odd" if i % 2 else "even"
                 self._link_tree.insert("", "end", tags=(tag,),
-                    values=(row["person_id"], row["username"], row["media_name"]))
+                    values=(row["person_id"],
+                            row["first_name"] or "(none)",
+                            row["last_name"]  or "(none)",
+                            row["username"],
+                            row["media_name"]))
             conn.close()
         except Exception as exc:
             messagebox.showerror("Database Error", str(exc))
