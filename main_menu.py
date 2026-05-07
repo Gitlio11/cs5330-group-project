@@ -162,19 +162,21 @@ class MainMenuApp(tk.Tk):
 
 
 #  ADD USER ACCOUNT WINDOW (Savannah)
+
+#  ADD USER ACCOUNT WINDOW (Savannah)
 class AddUserWindow(tk.Toplevel):
     """
     Adds a new UserAccount to the database.
-    Platform (media_name) must already exist in SocialMedia.
-    All fields except username, media_name are optional.
+    All fields except username and media_name are optional.
+    Window is scrollable so Save button is always reachable.
     """
 
     def __init__(self, parent):
         super().__init__(parent)
         self.title("Add User Account")
         self.configure(bg=BG)
-        self.resizable(False, False)
-        self._center(440, 480)
+        self.resizable(True, True)
+        self._center(460, 560)
         self._build()
 
     def _center(self, w, h):
@@ -189,18 +191,32 @@ class AddUserWindow(tk.Toplevel):
         tk.Label(hdr, text="Add User Account", font=FONT_H2,
                  bg=ACCENT, fg="white").pack()
 
-        body = tk.Frame(self, bg=BG, padx=30, pady=20)
-        body.pack(fill="both", expand=True)
+        # Scrollable canvas so button is always reachable
+        canvas = tk.Canvas(self, bg=BG, highlightthickness=0)
+        sb = ttk.Scrollbar(self, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+
+        body = tk.Frame(canvas, bg=BG, padx=30, pady=20)
+        win_id = canvas.create_window((0, 0), window=body, anchor="nw")
+
+        def _resize(e):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        def _width(e):
+            canvas.itemconfig(win_id, width=e.width)
+        body.bind("<Configure>", _resize)
+        canvas.bind("<Configure>", _width)
 
         fields = [
-            ("Username (required):",          "username"),
-            ("Platform (required):",          "media_name"),
-            ("First Name (optional):",        "first_name"),
-            ("Last Name (optional):",         "last_name"),
-            ("Country of Birth (optional):",  "country_of_birth"),
-            ("Country of Residence (optional):","country_of_residence"),
-            ("Age (optional):",               "age"),
-            ("Gender (optional):",            "gender"),
+            ("Username (required):",             "username"),
+            ("Platform (required):",             "media_name"),
+            ("First Name (optional):",           "first_name"),
+            ("Last Name (optional):",            "last_name"),
+            ("Country of Birth (optional):",     "country_of_birth"),
+            ("Country of Residence (optional):", "country_of_residence"),
+            ("Age (optional):",                  "age"),
+            ("Gender (optional):",               "gender"),
         ]
 
         self._vars = {}
@@ -220,8 +236,7 @@ class AddUserWindow(tk.Toplevel):
                        bg=BG, fg=TEXT, selectcolor=ENTRY_BG,
                        font=FONT_BODY).pack(anchor="w", pady=(4, 12))
 
-        b = make_button(body, "Save User Account", self._save)
-        b.pack(fill="x")
+        make_button(body, "Save User Account", self._save).pack(fill="x", pady=(0, 16))
 
     def _save(self):
         username   = self._vars["username"].get().strip()
@@ -244,6 +259,8 @@ class AddUserWindow(tk.Toplevel):
         try:
             conn = get_connection()
             cur  = conn.cursor()
+            # Auto-create platform if it doesn't exist
+            cur.execute("INSERT IGNORE INTO SocialMedia (media_name) VALUES (%s)", (media_name,))
             cur.execute("""
                 INSERT INTO UserAccount
                     (username, media_name, first_name, last_name,
@@ -262,7 +279,7 @@ class AddUserWindow(tk.Toplevel):
             ))
             conn.commit()
             conn.close()
-            messagebox.showinfo("Success", "User account saved successfully!")
+            messagebox.showinfo("Success", f"User '{username}' on '{media_name}' saved!")
             self.destroy()
         except Exception as exc:
             messagebox.showerror("Database Error", str(exc))
@@ -272,8 +289,8 @@ class AddUserWindow(tk.Toplevel):
 class AddPersonWindow(tk.Toplevel):
     """
     Adds a new Person to the database.
-    First and last name are optional — person may be unknown.
-    After saving, use 'Link Accounts to Same Person' to connect accounts.
+    First and last name are optional.
+    Shows the new person_id after saving so user can use it for linking.
     """
 
     def __init__(self, parent):
@@ -281,7 +298,7 @@ class AddPersonWindow(tk.Toplevel):
         self.title("Add Person")
         self.configure(bg=BG)
         self.resizable(False, False)
-        self._center(400, 260)
+        self._center(400, 240)
         self._build()
 
     def _center(self, w, h):
@@ -313,8 +330,7 @@ class AddPersonWindow(tk.Toplevel):
                  bg=ENTRY_BG, fg=TEXT, insertbackground=TEXT,
                  relief="flat").pack(fill="x", pady=(0, 16), ipady=4)
 
-        b = make_button(body, "Save Person", self._save)
-        b.pack(fill="x")
+        make_button(body, "Save Person", self._save).pack(fill="x")
 
     def _save(self):
         first = self._first.get().strip() or None
@@ -322,20 +338,20 @@ class AddPersonWindow(tk.Toplevel):
         try:
             conn = get_connection()
             cur  = conn.cursor()
-            cur.execute("""
-                INSERT INTO Person (first_name, last_name)
-                VALUES (%s, %s)
-            """, (first, last))
+            cur.execute("INSERT INTO Person (first_name, last_name) VALUES (%s, %s)",
+                        (first, last))
             conn.commit()
-            # Show the new person_id so user can use it for linking
             person_id = cur.lastrowid
             conn.close()
-            messagebox.showinfo("Success",
-                                f"Person saved! Person ID: {person_id}\n"
-                                "Use this ID to link accounts to this person.")
+            # Show person_id clearly so user can use it when linking accounts
+            messagebox.showinfo("Person Saved!",
+                                f"Person ID: {person_id}\n"
+                                f"Name: {first or '(none)'} {last or '(none)'}\n\n"
+                                "Use this Person ID in 'Link Accounts to Same Person'.")
             self.destroy()
         except Exception as exc:
             messagebox.showerror("Database Error", str(exc))
+
 
 #  ADD POST WINDOW (Savannah)
 class AddPostWindow(tk.Toplevel):
@@ -343,14 +359,15 @@ class AddPostWindow(tk.Toplevel):
     Allows a post to be entered independently without needing a project.
     Post is saved to the Post table only.
     Username + media_name must already exist in UserAccount.
+    Window is scrollable so all fields and Save button are reachable.
     """
 
     def __init__(self, parent):
         super().__init__(parent)
         self.title("Add Post")
         self.configure(bg=BG)
-        self.resizable(False, False)
-        self._center(480, 520)
+        self.resizable(True, True)
+        self._center(500, 580)
         self._build()
 
     def _center(self, w, h):
@@ -365,19 +382,33 @@ class AddPostWindow(tk.Toplevel):
         tk.Label(hdr, text="Add Post", font=FONT_H2,
                  bg=ACCENT, fg="white").pack()
 
-        body = tk.Frame(self, bg=BG, padx=30, pady=20)
-        body.pack(fill="both", expand=True)
+        # Scrollable canvas
+        canvas = tk.Canvas(self, bg=BG, highlightthickness=0)
+        sb = ttk.Scrollbar(self, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
 
-        # Fields
+        body = tk.Frame(canvas, bg=BG, padx=30, pady=20)
+        win_id = canvas.create_window((0, 0), window=body, anchor="nw")
+
+        def _resize(e):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        def _width(e):
+            canvas.itemconfig(win_id, width=e.width)
+        body.bind("<Configure>", _resize)
+        canvas.bind("<Configure>", _width)
+
+        # Required fields
         fields = [
-            ("Username:",       "username"),
-            ("Platform:",       "media_name"),
-            ("Post Time (YYYY-MM-DD HH:MM):", "post_time"),
-            ("City (optional):", "city"),
-            ("State (optional):", "state"),
-            ("Country (optional):", "country"),
-            ("Likes (optional):", "likes"),
-            ("Dislikes (optional):", "dislikes"),
+            ("Username (required):",            "username"),
+            ("Platform (required):",            "media_name"),
+            ("Post Time (YYYY-MM-DD HH:MM):",   "post_time"),
+            ("City (optional):",                "city"),
+            ("State (optional):",               "state"),
+            ("Country (optional):",             "country"),
+            ("Likes (optional):",               "likes"),
+            ("Dislikes (optional):",            "dislikes"),
         ]
 
         self._vars = {}
@@ -395,15 +426,15 @@ class AddPostWindow(tk.Toplevel):
         tk.Checkbutton(body, text="Has multimedia?",
                        variable=self._multimedia,
                        bg=BG, fg=TEXT, selectcolor=ENTRY_BG,
-                       font=FONT_BODY).pack(anchor="w")
+                       font=FONT_BODY).pack(anchor="w", pady=(0, 8))
 
-        # Post content
-        tk.Label(body, text="Post Content:", font=FONT_BODY,
-                 bg=BG, fg=TEXT, anchor="w").pack(fill="x", pady=(8, 0))
+        # Post content text box
+        tk.Label(body, text="Post Content (required):", font=FONT_BODY,
+                 bg=BG, fg=TEXT, anchor="w").pack(fill="x")
         self._content = tk.Text(body, font=FONT_BODY, bg=ENTRY_BG,
                                 fg=TEXT, insertbackground=TEXT,
-                                relief="flat", height=4)
-        self._content.pack(fill="x", pady=(0, 12))
+                                relief="flat", height=5)
+        self._content.pack(fill="x", pady=(0, 8))
 
         # Repost of
         tk.Label(body, text="Repost of Post ID (optional):", font=FONT_BODY,
@@ -413,12 +444,9 @@ class AddPostWindow(tk.Toplevel):
                  bg=ENTRY_BG, fg=TEXT, insertbackground=TEXT,
                  relief="flat").pack(fill="x", pady=(0, 12), ipady=4)
 
-        # Submit button
-        b = make_button(body, "Save Post", self._save)
-        b.pack(fill="x")
+        make_button(body, "Save Post", self._save).pack(fill="x", pady=(0, 16))
 
     def _save(self):
-        # Get values
         username   = self._vars["username"].get().strip()
         media_name = self._vars["media_name"].get().strip()
         post_time  = self._vars["post_time"].get().strip()
@@ -438,8 +466,8 @@ class AddPostWindow(tk.Toplevel):
             return
 
         try:
-            likes    = int(likes)    if likes    else None
-            dislikes = int(dislikes) if dislikes else None
+            likes     = int(likes)     if likes     else None
+            dislikes  = int(dislikes)  if dislikes  else None
             repost_of = int(repost_of) if repost_of else None
         except ValueError:
             messagebox.showwarning("Invalid input",
