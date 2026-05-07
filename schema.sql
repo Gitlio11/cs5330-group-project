@@ -41,9 +41,12 @@ CREATE TABLE IF NOT EXISTS UserAccount (
 -- PERSON
 -- A real-world person who may own multiple accounts.
 -- ID number to link multiple accounts
+-- Added First and last name
 
 CREATE TABLE IF NOT EXISTS Person (
-    person_id   INT AUTO_INCREMENT PRIMARY KEY
+   person_id   INT AUTO_INCREMENT PRIMARY KEY,
+    first_name  VARCHAR(100),
+    last_name   VARCHAR(100)
 );
 
 
