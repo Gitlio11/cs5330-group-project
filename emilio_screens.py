@@ -311,7 +311,7 @@ class LinkAccountsWindow(tk.Toplevel):
                 return
 
             if self._new_person.get():
-                cur.execute("INSERT INTO Person (first_name, last_name) VALUES (NULL, NULL)"))
+                cur.execute("INSERT INTO Person (first_name, last_name) VALUES (NULL, NULL)")
                 person_id = cur.lastrowid
             else:
                 raw = self._person_id.get().strip()
