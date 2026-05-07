@@ -66,7 +66,7 @@ class AddPostsWindow(tk.Toplevel):
         self.title("Link Posts and Projects")
         self.configure(bg=BG)
         self.resizable(False, False)
-        center_window(self, 560, 280)  # CHANGED: smaller window, just 2 fields
+        center_window(self, 560, 280)
         self._build()
 
     def _build(self):
@@ -141,7 +141,7 @@ class LinkAccountsWindow(tk.Toplevel):
         self.title("Link Accounts to Same Person")
         self.configure(bg=BG)
         self.resizable(False, False)
-        center_window(self, 620, 500)
+        center_window(self, 620, 540)  # CHANGED: taller to fit persons table
         self._build()
 
     def _build(self):
@@ -151,47 +151,35 @@ class LinkAccountsWindow(tk.Toplevel):
                  font=FONT_H2, bg=ACCENT, fg="white").pack()
 
         form = tk.Frame(self, bg=PANEL, padx=16, pady=16)
-        form.pack(fill="x", padx=20, pady=16)
+        form.pack(fill="x", padx=20, pady=(16, 0))
 
-        self._new_person = tk.BooleanVar(value=True)
+        # CHANGED: removed radio buttons, just use Person ID directly
         self._person_id = tk.StringVar()
-        self._username = tk.StringVar()
-        self._media = tk.StringVar()
+        self._username  = tk.StringVar()
+        self._media     = tk.StringVar()
 
-        tk.Label(form, text="Person:", font=FONT_BODY,
-                 bg=PANEL, fg=TEXT).grid(row=0, column=0, sticky="e", padx=(12, 6), pady=4)
-        rb_frame = tk.Frame(form, bg=PANEL)
-        rb_frame.grid(row=0, column=1, sticky="w")
-        tk.Radiobutton(rb_frame, text="Create new person",
-                       variable=self._new_person, value=True,
-                       bg=PANEL, fg=TEXT, selectcolor=ENTRY_BG,
-                       activebackground=PANEL,
-                       command=self._toggle).pack(side="left")
-        tk.Radiobutton(rb_frame, text="Use existing ID",
-                       variable=self._new_person, value=False,
-                       bg=PANEL, fg=TEXT, selectcolor=ENTRY_BG,
-                       activebackground=PANEL,
-                       command=self._toggle).pack(side="left", padx=(12, 0))
+        labeled_entry(form, "Person ID *",        0, self._person_id)
+        labeled_entry(form, "Username *",          1, self._username)
+        labeled_entry(form, "Platform (media) *",  2, self._media)
 
-        tk.Label(form, text="Person ID", font=FONT_BODY,
-                 bg=PANEL, fg=TEXT).grid(row=1, column=0, sticky="e", padx=(12, 6), pady=4)
-        self._id_entry = tk.Entry(form, textvariable=self._person_id,
-                                   font=FONT_BODY, bg=ENTRY_BG, fg=TEXT,
-                                   insertbackground=TEXT, relief="flat",
-                                   width=16, state="disabled")
-        self._id_entry.grid(row=1, column=1, sticky="w", padx=(0, 12), pady=4, ipady=3)
-
-        labeled_entry(form, "Username *",         2, self._username)
-        labeled_entry(form, "Platform (media) *", 3, self._media)
-
-        self._status = tk.StringVar(
-            value="Create a new person or enter an existing ID, then link an account.")
+        self._status = tk.StringVar(value="Enter Person ID and account to link.")
         tk.Label(self, textvariable=self._status, font=FONT_SMALL,
                  bg=BG, fg=SUBTEXT, wraplength=580, anchor="w").pack(
-            fill="x", padx=20, pady=(0, 4))
+            fill="x", padx=20, pady=(8, 4))
 
-        btn = make_button(self, "Link Account", self._submit)
-        btn.pack(pady=(0, 10), padx=20, fill="x")
+        make_button(self, "Link Account", self._submit).pack(pady=(0, 10), padx=20, fill="x")
+
+        # CHANGED: added Persons table so user can see available Person IDs
+        tk.Label(self, text="All persons in system", font=FONT_SMALL,
+                 bg=BG, fg=SUBTEXT).pack(anchor="w", padx=20)
+        persons_frame = tk.Frame(self, bg=BG)
+        persons_frame.pack(fill="x", padx=20, pady=(0, 6))
+        self._persons_tree = make_tree(persons_frame, [
+            ("person_id",  "Person ID",  80),
+            ("first_name", "First Name", 150),
+            ("last_name",  "Last Name",  150),
+        ], height=3)
+        self._load_persons()
 
         tk.Label(self, text="Existing links", font=FONT_SMALL,
                  bg=BG, fg=SUBTEXT).pack(anchor="w", padx=20)
@@ -203,14 +191,26 @@ class LinkAccountsWindow(tk.Toplevel):
             ("last_name",  "Last Name",  110),
             ("username",   "Username",   130),
             ("media_name", "Platform",   110),
-        ], height=5)
+        ], height=3)
         self._load_links()
 
-    def _toggle(self):
-        if self._new_person.get():
-            self._id_entry.configure(state="disabled")
-        else:
-            self._id_entry.configure(state="normal")
+    # CHANGED: new method to load all persons
+    def _load_persons(self):
+        self._persons_tree.delete(*self._persons_tree.get_children())
+        try:
+            conn = get_connection()
+            cur = conn.cursor(dictionary=True)
+            cur.execute("SELECT person_id, first_name, last_name FROM Person ORDER BY person_id")
+            for i, row in enumerate(cur.fetchall()):
+                tag = "odd" if i % 2 else "even"
+                self._persons_tree.insert("", "end", tags=(tag,), values=(
+                    row["person_id"],
+                    row["first_name"] or "(none)",
+                    row["last_name"]  or "(none)",
+                ))
+            conn.close()
+        except Exception as exc:
+            messagebox.showerror("Database Error", str(exc))
 
     def _load_links(self):
         self._link_tree.delete(*self._link_tree.get_children())
@@ -237,15 +237,28 @@ class LinkAccountsWindow(tk.Toplevel):
             messagebox.showerror("Database Error", str(exc))
 
     def _submit(self):
-        username = self._username.get().strip()
-        media = self._media.get().strip()
-        if not username or not media:
-            messagebox.showwarning("Missing fields", "Username and Platform are required.")
+        username  = self._username.get().strip()
+        media     = self._media.get().strip()
+        raw       = self._person_id.get().strip()
+
+        if not username or not media or not raw:
+            messagebox.showwarning("Missing fields",
+                                   "Person ID, Username and Platform are all required.")
+            return
+        if not raw.isdigit():
+            messagebox.showwarning("Invalid ID", "Person ID must be a number.")
             return
 
+        person_id = int(raw)
         try:
             conn = get_connection()
             cur = conn.cursor(dictionary=True)
+
+            cur.execute("SELECT 1 FROM Person WHERE person_id = %s", (person_id,))
+            if not cur.fetchone():
+                messagebox.showerror("Not found", f"No person with ID {person_id}.")
+                conn.close()
+                return
 
             cur.execute("SELECT 1 FROM UserAccount WHERE username = %s AND media_name = %s",
                         (username, media))
@@ -255,33 +268,64 @@ class LinkAccountsWindow(tk.Toplevel):
                 conn.close()
                 return
 
-            if self._new_person.get():
-                cur.execute("INSERT INTO Person (first_name, last_name) VALUES (NULL, NULL)")
-                person_id = cur.lastrowid
-            else:
-                raw = self._person_id.get().strip()
-                if not raw.isdigit():
-                    messagebox.showwarning("Invalid ID", "Person ID must be a number.")
-                    conn.close()
-                    return
-                person_id = int(raw)
-                cur.execute("SELECT 1 FROM Person WHERE person_id = %s", (person_id,))
-                if not cur.fetchone():
-                    messagebox.showerror("Not found", f"No person with ID {person_id}.")
-                    conn.close()
-                    return
-
             cur.execute("INSERT IGNORE INTO AccountOwnership (person_id, username, media_name) VALUES (%s, %s, %s)",
                         (person_id, username, media))
-
             conn.commit()
             conn.close()
             messagebox.showinfo("Success",
                 f"'{username}' on '{media}' linked to person ID {person_id}.")
+            self._person_id.set("")
             self._username.set("")
             self._media.set("")
             self._load_links()
 
+        except Exception as exc:
+            messagebox.showerror("Database Error", str(exc))
+
+
+# ADDED: new window to view all persons in the system
+class ViewPersonsWindow(tk.Toplevel):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("View All Persons")
+        self.configure(bg=BG)
+        self.resizable(True, True)
+        center_window(self, 500, 400)
+        self._build()
+
+    def _build(self):
+        hdr = tk.Frame(self, bg=ACCENT, pady=10)
+        hdr.pack(fill="x")
+        tk.Label(hdr, text="All Persons in System",
+                 font=FONT_H2, bg=ACCENT, fg="white").pack()
+
+        tk.Label(self, text="All persons added to the database:",
+                 font=FONT_SMALL, bg=BG, fg=SUBTEXT, anchor="w").pack(
+            fill="x", padx=20, pady=(8, 4))
+
+        tree_frame = tk.Frame(self, bg=BG)
+        tree_frame.pack(fill="both", expand=True, padx=20, pady=(0, 12))
+        self._tree = make_tree(tree_frame, [
+            ("person_id",  "Person ID",  80),
+            ("first_name", "First Name", 180),
+            ("last_name",  "Last Name",  180),
+        ], height=12)
+        self._load()
+
+    def _load(self):
+        self._tree.delete(*self._tree.get_children())
+        try:
+            conn = get_connection()
+            cur = conn.cursor(dictionary=True)
+            cur.execute("SELECT person_id, first_name, last_name FROM Person ORDER BY person_id")
+            for i, row in enumerate(cur.fetchall()):
+                tag = "odd" if i % 2 else "even"
+                self._tree.insert("", "end", tags=(tag,), values=(
+                    row["person_id"],
+                    row["first_name"] or "(none)",
+                    row["last_name"]  or "(none)",
+                ))
+            conn.close()
         except Exception as exc:
             messagebox.showerror("Database Error", str(exc))
 
