@@ -95,10 +95,12 @@ class MainMenuApp(tk.Tk):
         sections = [
             ("Data Entry", [
                 ("Add Project Info",            lambda: EnterProjectWindow(self)),
+                ("Add User Account",            self._open_add_user),
+                ("Add Person",                  self._open_add_person),
+                ("Link Accounts to Same Person", self._open_link_accounts),
                 ("Add Post",                    self._open_add_post),
                 ("Add Posts to a Project",      self._open_add_posts),
                 ("Enter Analysis Results",      lambda: EnterAnalysisWindow(self)),
-                ("Link Accounts to Same Person", self._open_link_accounts),
 ]),
             ("Search Posts", [
                 ("Search by Platform",            self._open_search_by_platform),
@@ -134,6 +136,12 @@ class MainMenuApp(tk.Tk):
     def _open_experiment_query(self):
         ExperimentQueryWindow(self)
 
+    def _open_add_user(self):
+        AddUserWindow(self)
+
+    def _open_add_person(self):
+        AddPersonWindow(self)
+
     def _open_add_post(self):
         AddPostWindow(self)
 
@@ -150,6 +158,184 @@ class MainMenuApp(tk.Tk):
         SearchByDateRangeWindow(self)
 
 
+
+
+
+#  ADD USER ACCOUNT WINDOW (Savannah)
+class AddUserWindow(tk.Toplevel):
+    """
+    Adds a new UserAccount to the database.
+    Platform (media_name) must already exist in SocialMedia.
+    All fields except username, media_name are optional.
+    """
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("Add User Account")
+        self.configure(bg=BG)
+        self.resizable(False, False)
+        self._center(440, 480)
+        self._build()
+
+    def _center(self, w, h):
+        self.update_idletasks()
+        sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
+        self.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2}")
+
+    def _build(self):
+        # Header
+        hdr = tk.Frame(self, bg=ACCENT, pady=10)
+        hdr.pack(fill="x")
+        tk.Label(hdr, text="Add User Account", font=FONT_H2,
+                 bg=ACCENT, fg="white").pack()
+
+        body = tk.Frame(self, bg=BG, padx=30, pady=20)
+        body.pack(fill="both", expand=True)
+
+        fields = [
+            ("Username (required):",          "username"),
+            ("Platform (required):",          "media_name"),
+            ("First Name (optional):",        "first_name"),
+            ("Last Name (optional):",         "last_name"),
+            ("Country of Birth (optional):",  "country_of_birth"),
+            ("Country of Residence (optional):","country_of_residence"),
+            ("Age (optional):",               "age"),
+            ("Gender (optional):",            "gender"),
+        ]
+
+        self._vars = {}
+        for label, key in fields:
+            tk.Label(body, text=label, font=FONT_BODY,
+                     bg=BG, fg=TEXT, anchor="w").pack(fill="x")
+            var = tk.StringVar()
+            tk.Entry(body, textvariable=var, font=FONT_BODY,
+                     bg=ENTRY_BG, fg=TEXT, insertbackground=TEXT,
+                     relief="flat").pack(fill="x", pady=(0, 6), ipady=4)
+            self._vars[key] = var
+
+        # Verified checkbox
+        self._verified = tk.BooleanVar(value=False)
+        tk.Checkbutton(body, text="Verified user?",
+                       variable=self._verified,
+                       bg=BG, fg=TEXT, selectcolor=ENTRY_BG,
+                       font=FONT_BODY).pack(anchor="w", pady=(4, 12))
+
+        b = make_button(body, "Save User Account", self._save)
+        b.pack(fill="x")
+
+    def _save(self):
+        username   = self._vars["username"].get().strip()
+        media_name = self._vars["media_name"].get().strip()
+
+        if not username or not media_name:
+            messagebox.showwarning("Missing fields",
+                                   "Username and Platform are required.")
+            return
+
+        age = self._vars["age"].get().strip() or None
+        try:
+            age = int(age) if age else None
+            if age is not None and age < 0:
+                raise ValueError
+        except ValueError:
+            messagebox.showwarning("Invalid input", "Age must be a non-negative number.")
+            return
+
+        try:
+            conn = get_connection()
+            cur  = conn.cursor()
+            cur.execute("""
+                INSERT INTO UserAccount
+                    (username, media_name, first_name, last_name,
+                     country_of_birth, country_of_residence,
+                     age, gender, verified)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                username, media_name,
+                self._vars["first_name"].get().strip() or None,
+                self._vars["last_name"].get().strip() or None,
+                self._vars["country_of_birth"].get().strip() or None,
+                self._vars["country_of_residence"].get().strip() or None,
+                age,
+                self._vars["gender"].get().strip() or None,
+                self._verified.get(),
+            ))
+            conn.commit()
+            conn.close()
+            messagebox.showinfo("Success", "User account saved successfully!")
+            self.destroy()
+        except Exception as exc:
+            messagebox.showerror("Database Error", str(exc))
+
+
+#  ADD PERSON WINDOW (Savannah)
+class AddPersonWindow(tk.Toplevel):
+    """
+    Adds a new Person to the database.
+    First and last name are optional — person may be unknown.
+    After saving, use 'Link Accounts to Same Person' to connect accounts.
+    """
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("Add Person")
+        self.configure(bg=BG)
+        self.resizable(False, False)
+        self._center(400, 260)
+        self._build()
+
+    def _center(self, w, h):
+        self.update_idletasks()
+        sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
+        self.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2}")
+
+    def _build(self):
+        # Header
+        hdr = tk.Frame(self, bg=ACCENT, pady=10)
+        hdr.pack(fill="x")
+        tk.Label(hdr, text="Add Person", font=FONT_H2,
+                 bg=ACCENT, fg="white").pack()
+
+        body = tk.Frame(self, bg=BG, padx=30, pady=20)
+        body.pack(fill="both", expand=True)
+
+        tk.Label(body, text="First Name (optional):", font=FONT_BODY,
+                 bg=BG, fg=TEXT, anchor="w").pack(fill="x")
+        self._first = tk.StringVar()
+        tk.Entry(body, textvariable=self._first, font=FONT_BODY,
+                 bg=ENTRY_BG, fg=TEXT, insertbackground=TEXT,
+                 relief="flat").pack(fill="x", pady=(0, 8), ipady=4)
+
+        tk.Label(body, text="Last Name (optional):", font=FONT_BODY,
+                 bg=BG, fg=TEXT, anchor="w").pack(fill="x")
+        self._last = tk.StringVar()
+        tk.Entry(body, textvariable=self._last, font=FONT_BODY,
+                 bg=ENTRY_BG, fg=TEXT, insertbackground=TEXT,
+                 relief="flat").pack(fill="x", pady=(0, 16), ipady=4)
+
+        b = make_button(body, "Save Person", self._save)
+        b.pack(fill="x")
+
+    def _save(self):
+        first = self._first.get().strip() or None
+        last  = self._last.get().strip() or None
+        try:
+            conn = get_connection()
+            cur  = conn.cursor()
+            cur.execute("""
+                INSERT INTO Person (first_name, last_name)
+                VALUES (%s, %s)
+            """, (first, last))
+            conn.commit()
+            # Show the new person_id so user can use it for linking
+            person_id = cur.lastrowid
+            conn.close()
+            messagebox.showinfo("Success",
+                                f"Person saved! Person ID: {person_id}\n"
+                                "Use this ID to link accounts to this person.")
+            self.destroy()
+        except Exception as exc:
+            messagebox.showerror("Database Error", str(exc))
 
 #  ADD POST WINDOW (Savannah)
 class AddPostWindow(tk.Toplevel):
