@@ -10,7 +10,7 @@ The app is organized into three sections:
 - Search Posts
 - Experiments
 
-*User manual for installation and program use: *
+*User manual for installation and program use:*
 
 Overview
 Welcome to our application! Our application uses a MySQL database on your local machine as the backend and a Python desktop window (GUI) as the frontend. You do not need any database knowledge to use it - just follow these steps in this manual.
