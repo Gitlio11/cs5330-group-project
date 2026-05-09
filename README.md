@@ -1,4 +1,4 @@
-**CS5330 Group 2 Project**
+***CS5330 Group 2 Project***
 
 Created by Vikas Deo, Emilio Munoz, Asha Patel, and Savannah Nelson.
 
@@ -16,7 +16,7 @@ Overview
 
 Welcome to our application! Our application uses a MySQL database on your local machine as the backend and a Python desktop window (GUI) as the frontend. You do not need any database knowledge to use it - just follow these steps in this manual.
 
-Installation
+**Installation**
 
 Follow these steps in order. Do them once on your machine before running the app.
 
@@ -118,5 +118,20 @@ Open the file in the project folder called db_config.txt inside the project fold
 	
 	Be sure to save the file.
 
+**Running the App**
+Every time you want to use the app, do the following:
+Make sure MySQL is running. On Mac, check system preferences -> MySQL and confirm it says Running. On Windows, check services for MySQL.
+
+Open a Terminal window
+
+Navigate to project folder:
+
+| cd Downloads/cs5330-group-project-main
+
+Start the app:
+
+	| python3 main_menu.py
+	
+A window called “Social Media Anaylsis DB” will appear! You are all ready to use the app.
 
   
